@@ -4,13 +4,17 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+env/
 dist/
 build/
 
-# DVC - data and model files tracked by DVC, not Git
-data/
-ai/models/checkpoints/
-experiments/results/
+# DVC - ignore actual data, but allow .dvc pointer files
+/data/**
+!/data/**/*.dvc
+!/data/**/
+/ai/models/checkpoints/**
+!/ai/models/checkpoints/**/*.dvc
+/experiments/results/
 mlflow/mlruns/
 
 # Environment
