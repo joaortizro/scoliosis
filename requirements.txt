@@ -1,0 +1,30 @@
+# Core ML
+torch
+torchvision
+scikit-learn
+numpy
+pandas
+Pillow
+opencv-python
+
+# Experiment tracking
+mlflow
+dvc
+dvc-s3  # swap for dvc-gdrive, dvc-ssh, etc.
+
+# API server
+fastapi
+uvicorn[standard]
+pydantic
+
+# Utilities
+python-dotenv
+pyyaml
+tqdm
+matplotlib
+seaborn
+
+# Dev
+jupyter
+ipykernel
+pytest

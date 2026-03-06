@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# DVC - data and model files tracked by DVC, not Git
+data/
+ai/models/checkpoints/
+experiments/results/
+mlflow/mlruns/
+
+# Environment
+.env
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# MLflow
+mlflow/mlruns/
+
+# Node (frontend)
+front/node_modules/
+front/.next/
+front/dist/
+
+# Reference PDFs (large binaries — share via Drive/Notion instead)
+docs/references/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db

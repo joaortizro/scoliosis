@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "scoliosis-ai"
+dynamic = ["version"]
+description = "Scoliosis detection AI package"
+requires-python = ">=3.11"
+dependencies = [
+    "torch",
+    "torchvision",
+    "numpy",
+    "Pillow",
+    "pyyaml",
+]
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["ai*"]
+
+[tool.setuptools.package-data]
+"ai" = ["py.typed"]

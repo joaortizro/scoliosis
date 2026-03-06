@@ -1,0 +1,41 @@
+stages:
+  preprocess:
+    cmd: python scripts/preprocess.py
+    deps:
+      - data/raw
+      - ai/preprocessing/pipeline.py
+    params:
+      - params.yaml:
+          - data
+    outs:
+      - data/processed
+
+  train:
+    cmd: python scripts/train.py
+    deps:
+      - data/processed
+      - ai/models/architectures/
+      - ai/training/trainer.py
+    params:
+      - params.yaml:
+          - train
+          - model
+          - mlflow
+    outs:
+      - ai/models/checkpoints
+    metrics:
+      - experiments/results/metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: python scripts/evaluate.py
+    deps:
+      - data/processed
+      - ai/models/checkpoints
+      - ai/evaluation/evaluator.py
+    params:
+      - params.yaml:
+          - data
+    outs:
+      - experiments/results/plots:
+          cache: false
