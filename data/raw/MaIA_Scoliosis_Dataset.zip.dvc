@@ -1,0 +1,5 @@
+outs:
+- md5: 5867e2e5b3161e23e680fec252ac2354
+  size: 439201510
+  hash: md5
+  path: MaIA_Scoliosis_Dataset.zip
