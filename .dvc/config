@@ -1,0 +1,5 @@
+[core]
+    remote = myremote
+['remote "myremote"']
+    url = s3://s3-scoliosis/dvc-store
+    region = us-east-1
