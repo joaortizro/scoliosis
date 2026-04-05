@@ -7,6 +7,7 @@ venv/
 env/
 dist/
 build/
+.claude/
 
 # DVC - ignore actual data, but allow .dvc pointer files
 /data/**
