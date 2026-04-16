@@ -7,9 +7,6 @@ stages:
     params:
       - params.yaml:
           - data
-    outs:
-      - data/processed:
-          persist: true
 
   train:
     cmd: python scripts/train.py
@@ -22,9 +19,6 @@ stages:
           - train
           - model
           - mlflow
-    outs:
-      - ai/models/checkpoints:
-          persist: true
     metrics:
       - experiments/results/metrics.json:
           cache: false
