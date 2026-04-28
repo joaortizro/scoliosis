@@ -18,6 +18,8 @@ build/
 /experiments/results/
 mlflow/mlruns/
 
+/context/**
+
 # Environment
 .env
 *.env
