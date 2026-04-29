@@ -26,6 +26,7 @@ mlflow/mlruns/
 
 # Jupyter
 .ipynb_checkpoints/
+notebooks/**/*.html
 
 # MLflow
 mlflow/mlruns/
@@ -41,3 +42,4 @@ docs/references/*.pdf
 # OS
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
