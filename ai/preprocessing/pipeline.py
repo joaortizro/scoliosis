@@ -1,5 +1,9 @@
-import yaml
+import logging
 from pathlib import Path
+
+import yaml
+
+log = logging.getLogger(__name__)
 
 
 def load_params(params_path: str = "params.yaml") -> dict:
@@ -13,9 +17,10 @@ def preprocess(params: dict):
     processed_dir.mkdir(parents=True, exist_ok=True)
 
     # TODO: implement preprocessing logic
-    print(f"Processing data from {raw_dir} -> {processed_dir}")
+    log.info("processing data from %s -> %s", raw_dir, processed_dir)
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     params = load_params()
     preprocess(params)

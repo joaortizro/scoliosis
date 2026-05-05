@@ -4,6 +4,15 @@ AI-powered scoliosis detection system using deep learning, with full experiment 
 
 ---
 
+## Status
+
+- **Current best val Dice (canonical 80/20):** 0.643 — `model_primer_v3_corrected.ipynb`, EncoderUNet(resnet34) + augment_v4 + seg_loss_fn (CE+Dice).
+- **Phase 0 stack landed (Dice 0.643 → 0.80+ plan):** trainer in `ai/training/trainer.py`, EMA, real CLAHE, flip-TTA via `ai.Predictor`, optional SDHL boundary loss, `tests/test_no_leakage.py` enforcing patient-grouped + severity-stratified splits with a frozen `data/processed/audit_v2_corrected/test_holdout.csv` slice.
+- **Next gate (Phase 0):** `python scripts/train.py` reproduces 0.643 ± 0.01 (fidelity), then EMA + real CLAHE + boundary-λ ablation drive val Dice ≥ 0.71.
+- **Test slice is sealed:** the 25-case `test_holdout.csv` is touched only by `scripts/eval_test.py` after all gates pass — never by `scripts/train.py` or `scripts/evaluate.py`.
+
+---
+
 ## Stack
 
 | Layer | Technology |

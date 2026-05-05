@@ -6,6 +6,11 @@ numpy
 pandas
 Pillow
 opencv-python
+scipy
+torchxrayvision  # Phase 1.1 — PadChest+NIH+RSNA+SIIM+VinDr ResNet-50 weights
+imageio          # torchxrayvision dep
+scikit-image     # torchxrayvision dep
+# ultralytics    # Phase 1.2 — only when Roboflow asset confirmed
 
 # Experiment tracking
 mlflow

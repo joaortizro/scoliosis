@@ -1,19 +1,39 @@
 data:
   raw_dir: data/raw
   processed_dir: data/processed
-  test_size: 0.2
+  clean_index: data/processed/audit_v2_corrected/clean_index.csv
+  test_holdout: data/processed/audit_v2_corrected/test_holdout.csv
+  val_frac: 0.2
+  cv_folds: 5
   random_seed: 42
 
 train:
-  epochs: 50
-  batch_size: 4
-  learning_rate: 0.001
-  optimizer: adam
-
-model:
-  architecture: resnet50
-  num_classes: 2
+  encoder_name: resnet34
   pretrained: true
+  dropout: 0.2
+  batch_size: 4
+  epochs: 100
+  lr_enc: 1.0e-4
+  lr_dec: 1.0e-3
+  weight_decay: 2.0e-4
+  optimizer: adamw          # adam | adamw
+  freeze_encoder_epochs: 10
+  augment: v4
+  early_stop:
+    patience: 20
+    min_delta: 0.0
+  ema:
+    enabled: true
+    decay: 0.999
+  preprocess:
+    clahe_mode: "off"        # "off" | "real"
+    normalization: div255    # div255 | txrv
+    roi_crop: "off"          # "off" | "from_mask" | "from_yolo"
+  loss:
+    boundary_lambda: 0.0   # set to 0.05/0.1/0.2 to enable SDHL boundary loss
+
+evaluate:
+  metrics_path: experiments/results/metrics.json
 
 mlflow:
   experiment_name: scoliosis-detection

@@ -83,3 +83,60 @@ def test_no_dot_cuda_calls(root: Path) -> None:
         "Found forbidden `.cuda()` calls — use `.to(device)` instead:\n  "
         + "\n  ".join(offenders)
     )
+
+
+def _find_print_calls(text: str) -> list[int]:
+    """Return line numbers of bare ``print(`` calls (skip strings/comments)."""
+    hits: list[int] = []
+    try:
+        toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenizeError, IndentationError):
+        return hits
+    for i, tok in enumerate(toks):
+        if tok.type != tokenize.NAME or tok.string != "print":
+            continue
+        # Skip attribute access: foo.print(...)
+        if i > 0:
+            prev = toks[i - 1]
+            if prev.type == tokenize.OP and prev.string == ".":
+                continue
+        # Skip imports/from: from x import print, etc.
+        if i > 0:
+            prev = toks[i - 1]
+            if prev.type == tokenize.NAME and prev.string in ("import", "as"):
+                continue
+        # Look ahead for "("
+        if i + 1 < len(toks):
+            nxt = toks[i + 1]
+            if nxt.type == tokenize.OP and nxt.string == "(":
+                hits.append(tok.start[0])
+    return hits
+
+
+def test_no_print_in_ai_library() -> None:
+    """No bare ``print()`` calls in ``ai/`` — use ``logging`` instead.
+
+    Notebooks and ``scripts/`` may use ``print``. The library is
+    long-lived and noisy stdout from a library call is hostile to
+    callers redirecting their own logs.
+
+    A short allow-list permits ``__main__`` bodies and the device
+    helper (used as a CLI smoke check at module load).
+    """
+    allow = {
+        AI_ROOT / "utils" / "device.py",  # has __main__ block
+    }
+    offenders: list[str] = []
+    for py in _iter_py_files(AI_ROOT):
+        if py in allow:
+            continue
+        try:
+            text = py.read_text()
+        except OSError:
+            continue
+        for lineno in _find_print_calls(text):
+            offenders.append(f"{py.relative_to(REPO_ROOT)}:{lineno}")
+    assert not offenders, (
+        "Found forbidden `print()` calls in ai/ — use the `logging` module:\n  "
+        + "\n  ".join(offenders)
+    )

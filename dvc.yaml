@@ -11,27 +11,34 @@ stages:
   train:
     cmd: python scripts/train.py
     deps:
-      - data/processed
+      - data/processed/audit_v2_corrected/clean_index.csv
+      - data/processed/audit_v2_corrected/test_holdout.csv
+      - ai/training/
       - ai/models/architectures/
-      - ai/training/trainer.py
+      - ai/preprocessing/segmentation.py
+      - ai/preprocessing/keypoints.py
+      - ai/evaluation/seg_metrics.py
+      - ai/utils/
+      - scripts/train.py
     params:
       - params.yaml:
+          - data
           - train
-          - model
-          - mlflow
-    metrics:
-      - experiments/results/metrics.json:
-          cache: false
 
   evaluate:
     cmd: python scripts/evaluate.py
     deps:
-      - data/processed
+      - data/processed/audit_v2_corrected/clean_index.csv
+      - data/processed/audit_v2_corrected/test_holdout.csv
       - ai/models/checkpoints
-      - ai/evaluation/evaluator.py
+      - ai/evaluation/
+      - ai/inference/
+      - ai/training/splits.py
+      - scripts/evaluate.py
     params:
       - params.yaml:
           - data
-    outs:
-      - experiments/results/plots:
+          - evaluate
+    metrics:
+      - experiments/results/metrics.json:
           cache: false
