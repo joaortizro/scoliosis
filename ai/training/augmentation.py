@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cv2
 import numpy as np
 import torch
 from scipy.ndimage import gaussian_filter, map_coordinates
@@ -191,9 +192,60 @@ def clahe_like(
     return torch.from_numpy(np.clip(enhanced, 0.0, 1.0).astype(np.float32)).unsqueeze(0)
 
 
+def clahe_real(
+    image: torch.Tensor,
+    clip_limit: float = 2.0,
+    tile_grid_size: tuple[int, int] = (8, 8),
+) -> torch.Tensor:
+    """Real CLAHE (Contrast Limited Adaptive Histogram Equalization).
+
+    Operates on a ``(1, H, W)`` float tensor in ``[0, 1]``. Used as a
+    deterministic preprocessing step (not random augmentation): when
+    ``params.preprocess.clahe_mode == "real"`` the dataset applies this
+    once per image before normalization. Per-fold A/B is the
+    Phase 0.3 ablation.
+    """
+    if image.dim() != 3 or image.shape[0] != 1:
+        raise ValueError(f"clahe_real expects (1, H, W) tensor, got {tuple(image.shape)}")
+    img_np = image.squeeze(0).numpy()
+    img_u8 = np.clip(img_np * 255.0, 0, 255).astype(np.uint8)
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
+    out_u8 = clahe.apply(img_u8)
+    out = out_u8.astype(np.float32) / 255.0
+    return torch.from_numpy(out).unsqueeze(0)
+
+
 # ---------------------------------------------------------------------------
 # v4 composed pipeline — stronger augmentation for 122-image dataset
 # ---------------------------------------------------------------------------
+
+
+def cutmix_pair(
+    image: torch.Tensor,
+    seg: torch.Tensor,
+    src_image: torch.Tensor,
+    src_seg: torch.Tensor,
+    rect_frac_range: tuple[float, float] = (0.1, 0.4),
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Paste a random rectangle from ``src_*`` into ``image`` / ``seg``.
+
+    Cobb is computed post-hoc from the seg mask, so the seg loss is
+    well-defined on a CutMix'd target. Phase 1.3 — only fires when
+    SWA + CutMix are needed to close a 0.78–0.80 gap.
+    """
+    if image.shape != src_image.shape or seg.shape != src_seg.shape:
+        raise ValueError("CutMix requires identical-shape pairs")
+    _, h, w = image.shape
+    frac = _uniform(*rect_frac_range)
+    rh = max(1, int(round(h * frac)))
+    rw = max(1, int(round(w * frac)))
+    y = int(torch.randint(0, max(1, h - rh + 1), (1,)).item())
+    x = int(torch.randint(0, max(1, w - rw + 1), (1,)).item())
+    out_img = image.clone()
+    out_seg = seg.clone()
+    out_img[:, y : y + rh, x : x + rw] = src_image[:, y : y + rh, x : x + rw]
+    out_seg[y : y + rh, x : x + rw] = src_seg[y : y + rh, x : x + rw]
+    return out_img, out_seg
 
 
 def augment_v4(
