@@ -59,7 +59,7 @@ def main() -> int:
     cfg["train"]["preprocess"]["roi_crop"] = "from_mask"
 
     # Speed knob — not part of cfg-hash.
-    cfg["train"]["num_workers"] = 2
+    cfg["train"]["num_workers"] = 3
 
     log.info(
         "Phase 1.2 cfg: encoder=%s clahe=%s boundary=%.2f roi_crop=%s batch=%d lr_dec=%g",

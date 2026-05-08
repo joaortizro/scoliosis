@@ -65,7 +65,7 @@ def main() -> int:
     cfg["train"]["ema"]["enabled"] = True
     cfg["train"]["batch_size"] = 6  # 7900 XTX has 24 GB; batch 2 underutilizes the GPU
     cfg["train"]["lr_dec"] = 1.5e-3  # linear-scaling rule vs Phase 0 (batch 4 → 6, lr 1e-3 → 1.5e-3)
-    cfg["train"]["num_workers"] = 2  # parallel data prep so GPU doesn't wait on the augment pipeline
+    cfg["train"]["num_workers"] = 3  # parallel data prep so GPU doesn't wait on the augment pipeline
 
     result = run(cfg, use_cache=not args.no_cache)
     log.info("Phase 1.1 done — best_val_dice=%.3f run_dir=%s", result["best_val_dice"], result["run_dir"])
