@@ -3,3 +3,5 @@
 ['remote "myremote"']
     url = s3://s3-scoliosis/dvc-store
     region = us-east-1
+['remote "localstorage"']
+    url = /Users/jorge/Desktop/Programming/Final-Project/dvc-storage
