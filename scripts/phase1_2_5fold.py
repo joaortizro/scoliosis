@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -27,11 +28,63 @@ from ai.training.trainer import run
 log = logging.getLogger(__name__)
 
 
+def _post_run_hook(out_path: Path, summary: dict, *, self_stop: bool) -> None:
+    """Push checkpoints+sentinel to remote so a fresh box can recover them,
+    then optionally power off the host (EBS default = stop on shutdown,
+    needs no IAM ec2:StopInstances)."""
+    repo_root = Path(__file__).resolve().parent.parent
+    log.info("post-run hook: dvc push + git push sentinel; self_stop=%s", self_stop)
+
+    try:
+        subprocess.run(
+            ["dvc", "push"], cwd=repo_root, check=False, timeout=900,
+        )
+    except Exception as exc:
+        log.warning("dvc push failed: %s", exc)
+
+    try:
+        subprocess.run(
+            ["git", "add", str(out_path.relative_to(repo_root))],
+            cwd=repo_root, check=False,
+        )
+        msg = (
+            f"phase1_2 5-fold sentinel: mean={summary['mean_dice']:.4f} "
+            f"std={summary['std_dice']:.4f} n={summary['n_folds']}"
+        )
+        subprocess.run(
+            ["git", "commit", "-m", msg], cwd=repo_root, check=False,
+        )
+        subprocess.run(
+            ["git", "push", "origin", "HEAD"], cwd=repo_root, check=False, timeout=120,
+        )
+    except Exception as exc:
+        log.warning("git push failed: %s", exc)
+
+    if not self_stop:
+        log.info("self_stop disabled — leaving box up")
+        return
+
+    log.info("scheduling shutdown -h +2 (gives 2 min for log flush)")
+    try:
+        subprocess.run(
+            ["sudo", "shutdown", "-h", "+2",
+             "phase1_2 5-fold complete; auto-stop"],
+            check=False, timeout=10,
+        )
+    except Exception as exc:
+        log.warning("shutdown call failed: %s — box will stay up", exc)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--params", default="params.yaml")
     parser.add_argument("--out", default="experiments/results/phase1_2_5fold.json")
     parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument(
+        "--self-stop",
+        action="store_true",
+        help="After sentinel write, dvc push + git push + sudo shutdown -h +2 the host.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -127,6 +180,8 @@ def main() -> int:
         "single-split reference 0.6739; gate threshold 0.665; thesis target 0.78. wrote %s",
         out_path,
     )
+
+    _post_run_hook(out_path, summary, self_stop=args.self_stop)
     return 0
 
 
