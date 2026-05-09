@@ -4,8 +4,8 @@ Cavekit: cavekit-model-exploration.md R3.
 
 Given a HxW multiclass mask where pixel value == vertebra ID, return a
 (17*4, 2) array of keypoints in (x, y) pixel coordinates. The 17 target
-vertebrae are IDs 6..22 (T1..L5). For each vertebra, 4 corner keypoints
-are emitted in this fixed order:
+vertebrae are IDs 1..17 (T1..L5) in the active v2 dataset. For each
+vertebra, 4 corner keypoints are emitted in this fixed order:
 
     [top_left, top_right, bottom_left, bottom_right]
 
@@ -24,7 +24,8 @@ from collections.abc import Iterable
 import numpy as np
 
 # Target vertebra IDs are fixed by the cavekit and the dataset (T1..L5).
-TARGET_VERTEBRA_IDS: tuple[int, ...] = tuple(range(6, 23))  # 6..22 inclusive
+# v2 dataset default: 1..17. Pass ``target_ids=tuple(range(6, 23))`` for v1.
+TARGET_VERTEBRA_IDS: tuple[int, ...] = tuple(range(1, 18))  # 1..17 inclusive
 KEYPOINTS_PER_VERTEBRA: int = 4
 TOTAL_KEYPOINTS: int = len(TARGET_VERTEBRA_IDS) * KEYPOINTS_PER_VERTEBRA  # 68
 
@@ -102,7 +103,7 @@ def multiclass_mask_to_keypoints(
     Args:
         mask: 2D ndarray (H, W) of integer vertebra IDs. Background is 0.
         target_ids: Iterable of vertebra IDs to extract corners for. Defaults
-            to (6..22) i.e. T1..L5.
+            to v2 (1..17) i.e. T1..L5.
 
     Returns:
         (4 * len(target_ids), 2) float array of keypoints in (x, y) pixel

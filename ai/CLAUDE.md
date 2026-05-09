@@ -23,7 +23,7 @@ Installable PyTorch library (`scoliosis-ai`) for spine segmentation, keypoint ex
 
 ## Conventions
 - All hyperparameters received as function args — never read `params.yaml` directly
-- `target_ids` kwarg controls which vertebra IDs to process (v1 default: 6..22, v2: 1..17)
+- `target_ids` kwarg controls which vertebra IDs to process (v2 default: 1..17; pass `tuple(range(6, 23))` for legacy v1 masks)
 - Masks are 2D `np.ndarray`, background=0, classes=1..N
 - Keypoints use NaN for missing vertebrae, never zero-padding
 - Device placement via `.to(device)`, never `.cuda()` — DirectML compatibility required

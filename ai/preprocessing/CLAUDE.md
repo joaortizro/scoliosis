@@ -18,14 +18,14 @@ Transform raw MaIA dataset masks into training-ready segmentation labels and ver
 
 | Constant | File | Value | Meaning |
 |----------|------|-------|---------|
-| `TARGET_VERTEBRA_IDS` | both | `tuple(range(6, 23))` | v1 default: T1..L5 raw IDs |
+| `TARGET_VERTEBRA_IDS` | both | `tuple(range(1, 18))` | v2 default: T1..L5 raw IDs (1..17). Pass `tuple(range(6, 23))` for legacy v1 masks. |
 | `NUM_SEG_CLASSES` | `segmentation.py` | `18` | 0=background + 17 vertebrae |
 | `KEYPOINTS_PER_VERTEBRA` | `keypoints.py` | `4` | TL, TR, BL, BR corners |
 | `TOTAL_KEYPOINTS` | `keypoints.py` | `68` | 17 vertebrae x 4 corners |
 
 ## Dataset Version Handling
-- **v1 masks** (raw IDs 6..22): call with default `target_ids` or omit the arg
-- **v2 masks** (raw IDs 1..17): pass `target_ids=tuple(range(1, 18))`
+- **v2 masks** (raw IDs 1..17): call with default `target_ids` or omit the arg
+- **v1 masks** (raw IDs 6..22, legacy): pass `target_ids=tuple(range(6, 23))`
 - After remapping, both produce identical label space: 0=bg, 1..17=T1..L5
 
 ## Keypoint Layout

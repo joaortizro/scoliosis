@@ -29,7 +29,6 @@ from ai.evaluation.cobb import (
     cobb_from_segmentation_endplates,
 )
 from ai.preprocessing.keypoints import (
-    TARGET_VERTEBRA_IDS,
     TOTAL_KEYPOINTS,
     multiclass_mask_to_keypoints,
 )
@@ -40,6 +39,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DATASET_ROOT = REPO_ROOT / "data" / "raw" / "MaIA_Scoliosis_Dataset"
 MULTI_DIR = DATASET_ROOT / "LabelMultiClass_ID_PNG"
 METRICS_DIR = DATASET_ROOT / "RadiographMetrics" / "metrics_json"
+
+# This module exercises the **v1** MaIA dataset, whose raw masks carry IDs
+# 6..22 for T1..L5. The package default flipped to v2 (1..17) — pass these
+# explicitly to every preprocessing/cobb call below.
+_V1_TARGET_IDS: tuple[int, ...] = tuple(range(6, 23))
 
 # 5 ground-truth cases spanning the moderate-to-severe cobb-angle range.
 # Case IDs are scoliosis case numeric suffixes (S_<id>) — these correspond
@@ -102,7 +106,7 @@ def test_keypoint_extraction_shape_and_finiteness() -> None:
     """multiclass_mask_to_keypoints returns the right shape with finite corners
     for vertebrae that exist in the mask."""
     mask, _ = _load_gt_case(GT_CASE_IDS[0])
-    kps = multiclass_mask_to_keypoints(mask)
+    kps = multiclass_mask_to_keypoints(mask, target_ids=_V1_TARGET_IDS)
     assert kps.shape == (TOTAL_KEYPOINTS, 2), kps.shape
     # At least some target vertebrae should be present in a real scoliosis case
     finite = np.isfinite(kps).all(axis=1)
@@ -112,15 +116,15 @@ def test_keypoint_extraction_shape_and_finiteness() -> None:
 
 
 def test_segmentation_remap_collapses_non_targets() -> None:
-    """remap_to_target_classes maps target IDs 6..22 to 1..17 and everything
+    """remap_to_target_classes maps v1 target IDs 6..22 to 1..17 and everything
     else to 0."""
     mask, _ = _load_gt_case(GT_CASE_IDS[0])
-    remapped = remap_to_target_classes(mask)
+    remapped = remap_to_target_classes(mask, target_ids=_V1_TARGET_IDS)
     unique = set(int(v) for v in np.unique(remapped).tolist())
     assert unique <= set(range(0, NUM_TARGET_VERTEBRAE + 1)), unique
-    # No target should be lost: every TARGET_VERTEBRA_ID present in source
+    # No target should be lost: every v1 target ID present in source
     # should map to a non-zero class in remapped, in the right slot.
-    for i, vid in enumerate(TARGET_VERTEBRA_IDS, start=1):
+    for i, vid in enumerate(_V1_TARGET_IDS, start=1):
         if (mask == vid).any():
             assert (remapped == i).any(), f"vertebra {vid} (slot {i}) lost in remap"
 
@@ -133,7 +137,7 @@ def test_segmentation_remap_collapses_non_targets() -> None:
 @pytest.mark.parametrize("case_id", GT_CASE_IDS[:5])
 def test_cobb_from_keypoints_matches_ground_truth(case_id: str) -> None:
     mask, cobb_gt = _load_gt_case(case_id)
-    keypoints = multiclass_mask_to_keypoints(mask)
+    keypoints = multiclass_mask_to_keypoints(mask, target_ids=_V1_TARGET_IDS)
     cobb_pred = cobb_from_keypoints(keypoints)
     err = abs(cobb_pred - cobb_gt)
     assert err <= COBB_TOLERANCE_DEG, (
@@ -145,7 +149,7 @@ def test_cobb_from_keypoints_matches_ground_truth(case_id: str) -> None:
 @pytest.mark.parametrize("case_id", GT_CASE_IDS[:5])
 def test_cobb_from_segmentation_matches_ground_truth(case_id: str) -> None:
     mask, cobb_gt = _load_gt_case(case_id)
-    remapped = remap_to_target_classes(mask)
+    remapped = remap_to_target_classes(mask, target_ids=_V1_TARGET_IDS)
     cobb_pred = cobb_from_segmentation(remapped)
     err = abs(cobb_pred - cobb_gt)
     assert err <= COBB_TOLERANCE_DEG, (
@@ -160,8 +164,10 @@ def test_cobb_paths_agree(case_id: str) -> None:
     same PCA-based corner extraction so they should be (approximately)
     numerically identical, regardless of how close they are to GT."""
     mask, _ = _load_gt_case(case_id)
-    cobb_kp = cobb_from_raw_multiclass_mask(mask)
-    cobb_seg = cobb_from_segmentation(remap_to_target_classes(mask))
+    cobb_kp = cobb_from_raw_multiclass_mask(mask, target_ids=_V1_TARGET_IDS)
+    cobb_seg = cobb_from_segmentation(
+        remap_to_target_classes(mask, target_ids=_V1_TARGET_IDS)
+    )
     assert abs(cobb_kp - cobb_seg) < 1e-6, (
         f"case {case_id}: paths disagree — keypoint {cobb_kp:.4f} vs seg {cobb_seg:.4f}"
     )
@@ -201,7 +207,9 @@ def test_cobb_from_raw_multiclass_mask_endplates_ballpark(case_id: str) -> None:
     and the comment block above.
     """
     mask, cobb_gt = _load_gt_case(case_id)
-    cobb_pred = cobb_from_raw_multiclass_mask_endplates(mask)
+    cobb_pred = cobb_from_raw_multiclass_mask_endplates(
+        mask, target_ids=_V1_TARGET_IDS
+    )
     assert np.isfinite(cobb_pred), f"case {case_id}: non-finite prediction {cobb_pred}"
     assert 0.0 <= cobb_pred <= 180.0, (
         f"case {case_id}: prediction {cobb_pred:.2f}° outside [0, 180]"
@@ -224,8 +232,12 @@ def test_cobb_endplate_paths_agree(case_id: str) -> None:
     The numerical result must be identical up to float round-off.
     """
     mask, _ = _load_gt_case(case_id)
-    cobb_raw = cobb_from_raw_multiclass_mask_endplates(mask)
-    cobb_seg = cobb_from_segmentation_endplates(remap_to_target_classes(mask))
+    cobb_raw = cobb_from_raw_multiclass_mask_endplates(
+        mask, target_ids=_V1_TARGET_IDS
+    )
+    cobb_seg = cobb_from_segmentation_endplates(
+        remap_to_target_classes(mask, target_ids=_V1_TARGET_IDS)
+    )
     assert abs(cobb_raw - cobb_seg) < 1e-6, (
         f"case {case_id}: endplate paths disagree — "
         f"raw {cobb_raw:.4f} vs seg {cobb_seg:.4f}"

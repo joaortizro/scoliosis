@@ -366,7 +366,8 @@ def cobb_from_raw_multiclass_mask_endplates(
 
     Args:
         mask: 2D integer mask carrying raw vertebra IDs.
-        target_ids: IDs to measure (default T1..L5 = 6..22).
+        target_ids: IDs to measure (default v2 T1..L5 = 1..17; pass
+            ``tuple(range(6, 23))`` for v1 masks).
 
     Returns:
         Cobb angle in degrees, in [0, 180]. Returns 0.0 when fewer than 2

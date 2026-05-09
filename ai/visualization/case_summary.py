@@ -61,7 +61,8 @@ from ai.evaluation.cobb import (
 # ──────────────────────────────────────────────────────────────────────────
 
 #: Raw vertebra IDs in the multiclass mask that count as "target" (T1..L5).
-TARGET_VERTEBRA_IDS: tuple[int, ...] = tuple(range(6, 23))  # 6..22 inclusive
+#: v2 dataset default: 1..17. Pass ``target_ids=tuple(range(6, 23))`` for v1.
+TARGET_VERTEBRA_IDS: tuple[int, ...] = tuple(range(1, 18))  # 1..17 inclusive
 
 #: Anatomical names for the 17 target vertebrae, in head-to-tail order. The
 #: index of a name in this tuple matches the index of its raw ID in
