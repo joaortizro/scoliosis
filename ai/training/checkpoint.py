@@ -34,6 +34,20 @@ def find_cached_run(cfg: dict, root: Path) -> Path | None:
     return matches[-1] if matches else None
 
 
+def find_inflight_run(cfg: dict, root: Path) -> Path | None:
+    """Return the most recent run dir for ``cfg`` that has a ``last.pt``
+    epoch checkpoint but no final ``metrics.json`` — i.e. an interrupted
+    run that can be resumed. Returns None if no such dir exists."""
+    if not root.exists():
+        return None
+    h = config_hash(cfg)
+    matches = sorted([p for p in root.iterdir() if p.is_dir() and p.name.endswith(h)])
+    for p in reversed(matches):
+        if (p / "last.pt").exists() and not (p / "metrics.json").exists():
+            return p
+    return None
+
+
 def new_run_dir(cfg: dict, root: Path) -> Path:
     stamp = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     p = root / f"{stamp}_{config_hash(cfg)}"

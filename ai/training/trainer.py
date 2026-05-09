@@ -33,6 +33,7 @@ from ai.training import augmentation as aug
 from ai.training.checkpoint import (
     config_hash,
     find_cached_run,
+    find_inflight_run,
     new_run_dir,
     save_run,
 )
@@ -182,11 +183,15 @@ def build_dataloaders(
         roi_crop_mode=roi_crop_mode,
     )
 
+    num_workers = int(train_cfg.get("num_workers", 0))
+    loader_kwargs: dict = {"num_workers": num_workers}
+    if num_workers > 0:
+        loader_kwargs["persistent_workers"] = True
     train_loader = DataLoader(
-        train_ds, batch_size=int(train_cfg["batch_size"]), shuffle=True
+        train_ds, batch_size=int(train_cfg["batch_size"]), shuffle=True, **loader_kwargs
     )
     val_loader = DataLoader(
-        val_ds, batch_size=int(train_cfg["batch_size"]), shuffle=False
+        val_ds, batch_size=int(train_cfg["batch_size"]), shuffle=False, **loader_kwargs
     )
     return train_loader, val_loader
 
@@ -305,9 +310,42 @@ def run(
     best_state: dict[str, torch.Tensor] | None = None
     best_source = "live"
     no_improve = 0
+    start_epoch = 1
+
+    # Resume an interrupted run if one exists for this cfg-hash.
+    inflight = find_inflight_run(cache_cfg, CHECKPOINT_ROOT) if use_cache else None
+    if inflight is not None:
+        run_dir = inflight
+        log.info("resuming in-flight run %s", run_dir)
+        ckpt = torch.load(run_dir / "last.pt", map_location="cpu", weights_only=False)
+        resume_after = int(ckpt["epoch"])
+        # If resuming past the warmup boundary, rebuild the full optimizer
+        # so its param groups match the saved state.
+        if warmup > 0 and resume_after > warmup:
+            optimizer, scheduler = _swap_to_full_optimizer(
+                model, cfg, remaining_epochs=num_epochs - warmup
+            )
+            for p in model.encoder_params():
+                p.requires_grad = True
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        if scheduler is not None and ckpt.get("scheduler") is not None:
+            scheduler.load_state_dict(ckpt["scheduler"])
+        if ema is not None and ckpt.get("ema") is not None:
+            ema.load_state_dict(ckpt["ema"])
+        best_dice = float(ckpt["best_dice"])
+        best_state = ckpt.get("best_state")
+        best_source = str(ckpt.get("best_source", "live"))
+        no_improve = int(ckpt["no_improve"])
+        history = list(ckpt["history"])
+        start_epoch = resume_after + 1
+        log.info("resumed at epoch %d  best_dice=%.3f  no_improve=%d",
+                 start_epoch, best_dice, no_improve)
+    else:
+        run_dir = new_run_dir(cache_cfg, CHECKPOINT_ROOT)
 
     t_start = time.time()
-    for epoch in range(1, num_epochs + 1):
+    for epoch in range(start_epoch, num_epochs + 1):
         t0 = time.time()
 
         if warmup > 0 and epoch == warmup + 1:
@@ -368,6 +406,26 @@ def run(
             row["ema_dice"], row["lr_enc"], row["lr_dec"], row["sec"],
         )
 
+        # Persist epoch-level checkpoint for shutdown survival. Atomic
+        # write via temp-file + rename so a kill mid-save can't corrupt.
+        tmp = run_dir / "last.pt.tmp"
+        torch.save(
+            {
+                "epoch": epoch,
+                "model": _detached_state(model),
+                "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict() if scheduler is not None else None,
+                "ema": ema.state_dict() if ema is not None else None,
+                "best_dice": float(best_dice),
+                "best_state": best_state,
+                "best_source": best_source,
+                "no_improve": int(no_improve),
+                "history": history,
+            },
+            tmp,
+        )
+        tmp.replace(run_dir / "last.pt")
+
         if epoch > warmup and no_improve >= patience:
             log.info(">>> early stop at epoch %d (no improvement for %d epochs)", epoch, patience)
             break
@@ -386,9 +444,12 @@ def run(
         "split_fold": spec.fold,
     }
 
-    run_dir = new_run_dir(cache_cfg, CHECKPOINT_ROOT)
     save_run(run_dir, _detached_state(model), history, cache_cfg, metrics)
     log.info("saved run to %s — best_val_dice=%.3f (source=%s)", run_dir, best_dice, best_source)
+    # Remove epoch-level checkpoint now that the run is complete.
+    last = run_dir / "last.pt"
+    if last.exists():
+        last.unlink()
 
     return {"run_dir": str(run_dir), **metrics, "cached": False}
 
