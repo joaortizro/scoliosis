@@ -1,0 +1,6 @@
+outs:
+- md5: a6ea5ed09323c162c091031c0d8ce109.dir
+  size: 874674069
+  nfiles: 67
+  hash: md5
+  path: phase1_chain_2026-05-08_ec2_t4_v2_corrected
