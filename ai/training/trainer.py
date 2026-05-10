@@ -208,12 +208,23 @@ def train_one_epoch(
     device: torch.device,
     boundary_lambda: float = 0.0,
     ema: torch.optim.swa_utils.AveragedModel | None = None,
+    cutmix_prob: float = 0.0,
+    cutmix_frac_range: tuple[float, float] = (0.1, 0.4),
 ) -> float:
     model.train()
     losses: list[float] = []
     for images, seg_t in loader:
         images = images.to(device)
         seg_t = seg_t.to(device)
+        if cutmix_prob > 0.0 and torch.rand(1).item() < cutmix_prob:
+            from ai.training.augmentation import cutmix_pair
+            perm = torch.randperm(images.size(0), device=device)
+            for i in range(images.size(0)):
+                images[i], seg_t[i] = cutmix_pair(
+                    images[i], seg_t[i],
+                    images[perm[i]], seg_t[perm[i]],
+                    rect_frac_range=cutmix_frac_range,
+                )
         logits = model(images)
         loss = seg_loss_fn(
             logits,
@@ -354,10 +365,15 @@ def run(
                 model, cfg, remaining_epochs=num_epochs - warmup
             )
 
+        cutmix_cfg = train_cfg.get("cutmix", {}) or {}
+        cutmix_prob = float(cutmix_cfg.get("prob", 0.0)) if cutmix_cfg.get("enabled", False) else 0.0
+        cutmix_frac_range = tuple(cutmix_cfg.get("rect_frac_range", (0.1, 0.4)))
         train_loss = train_one_epoch(
             model, train_loader, optimizer, device,
             boundary_lambda=boundary_lambda,
             ema=ema,
+            cutmix_prob=cutmix_prob,
+            cutmix_frac_range=cutmix_frac_range,
         )
         live_stats = evaluate(model, val_loader, device, boundary_lambda=boundary_lambda)
 
@@ -481,6 +497,7 @@ def _cache_keys(cfg: dict, spec: SplitSpec) -> dict:
             "preprocess": train_cfg.get("preprocess", {}),
             "loss": train_cfg.get("loss", {}),
             "early_stop": train_cfg.get("early_stop", {}),
+            "cutmix": train_cfg.get("cutmix", {}),
         },
         "split": {"fold": spec.fold, "hash": spec.hash()},
     }

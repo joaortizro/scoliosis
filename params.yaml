@@ -31,6 +31,10 @@ train:
     roi_crop: "off"          # "off" | "from_mask" | "from_yolo"
   loss:
     boundary_lambda: 0.0   # set to 0.05/0.1/0.2 to enable SDHL boundary loss
+  cutmix:
+    enabled: false           # Phase 1.3a flips this to true
+    prob: 0.5                # per-batch probability of applying CutMix
+    rect_frac_range: [0.1, 0.4]  # uniform over this range for rect side as fraction of (H, W)
 
 evaluate:
   metrics_path: experiments/results/metrics.json
