@@ -67,6 +67,7 @@ import pandas as pd
 import torch
 from PIL import Image
 
+from ai.detection.roboflow_filter import count_vertebrae_in_label_file
 from ai.inference.predictor import Predictor
 from ai.preprocessing.segmentation import NUM_SEG_CLASSES
 from ai.training.dataset import IMG_H, IMG_W
@@ -83,6 +84,12 @@ MIN_VERTEBRAE_FOR_PSEUDO_LABEL: int = 14
 MIN_MEAN_CONFIDENCE: float = 0.70
 MIN_FG_FRAC: float = 0.005
 MAX_FG_FRAC: float = 0.40
+
+# Relaxed thresholds for "bbox-oracle salvage": when Roboflow's own
+# human bbox count >= 14, we KNOW the image is full coverage, so we can
+# trust lower-confidence model predictions to fill in the labels.
+SALVAGE_MIN_VERTEBRAE: int = 10
+SALVAGE_MIN_MEAN_CONFIDENCE: float = 0.55
 
 NUM_VERTEBRA_CLASSES: int = 17   # T1..L5
 
@@ -138,21 +145,37 @@ def ensemble_predict(
     return mask, confidence_map
 
 
-def pseudo_label_passes_quality(pred: dict) -> tuple[bool, str]:
+def pseudo_label_passes_quality(
+    pred: dict,
+    roboflow_bbox_count: int | None = None,
+) -> tuple[bool, str]:
     """Evaluate quality thresholds. Returns (accepted, reason_if_rejected).
 
     Args:
         pred: dict with keys 'pred_mask' (H, W uint8) and 'confidence_map' (H, W float).
+        roboflow_bbox_count: optional human bbox-count from Roboflow's own
+            label file. When provided and >= MIN_VERTEBRAE_FOR_PSEUDO_LABEL,
+            relaxed thresholds are used (bbox-oracle salvage path): the
+            image is human-confirmed full coverage, so we accept lower
+            model confidence + lower predicted-vertebra count.
     """
     mask = pred["pred_mask"]
     conf = pred["confidence_map"]
     n_pixels = mask.size
 
+    # Bbox-oracle salvage path: human bbox count >= 14 → relaxed thresholds
+    bbox_oracle_full_coverage = (
+        roboflow_bbox_count is not None
+        and roboflow_bbox_count >= MIN_VERTEBRAE_FOR_PSEUDO_LABEL
+    )
+    min_vert = SALVAGE_MIN_VERTEBRAE if bbox_oracle_full_coverage else MIN_VERTEBRAE_FOR_PSEUDO_LABEL
+    min_conf = SALVAGE_MIN_MEAN_CONFIDENCE if bbox_oracle_full_coverage else MIN_MEAN_CONFIDENCE
+
     # Distinct nonzero classes — proxy for # vertebrae visible
     nonzero_classes = set(np.unique(mask).tolist()) - {0}
     n_vertebrae = len(nonzero_classes)
-    if n_vertebrae < MIN_VERTEBRAE_FOR_PSEUDO_LABEL:
-        return False, f"only {n_vertebrae} distinct vertebrae predicted (need >= {MIN_VERTEBRAE_FOR_PSEUDO_LABEL})"
+    if n_vertebrae < min_vert:
+        return False, f"only {n_vertebrae} distinct vertebrae predicted (need >= {min_vert})"
 
     fg_mask = mask > 0
     fg_count = int(fg_mask.sum())
@@ -165,8 +188,8 @@ def pseudo_label_passes_quality(pred: dict) -> tuple[bool, str]:
     if fg_count == 0:
         return False, "no foreground pixels"
     mean_fg_conf = float(conf[fg_mask].mean())
-    if mean_fg_conf < MIN_MEAN_CONFIDENCE:
-        return False, f"mean fg confidence {mean_fg_conf:.3f} below {MIN_MEAN_CONFIDENCE}"
+    if mean_fg_conf < min_conf:
+        return False, f"mean fg confidence {mean_fg_conf:.3f} below {min_conf}"
 
     return True, ""
 
@@ -190,6 +213,10 @@ def main() -> None:
     ap.add_argument("--tta", default="hflip", choices=["off", "hflip"])
     ap.add_argument("--smoke", action="store_true",
                     help="process only 10 images to validate the pipeline")
+    ap.add_argument("--use-bbox-oracle", action="store_true",
+                    help="cross-check Roboflow's own human bbox count; "
+                         "use relaxed thresholds when bbox count >= 14 "
+                         "(human-confirmed full coverage)")
     args = ap.parse_args()
 
     print(f"=== pseudo-label Roboflow ===")
@@ -234,11 +261,18 @@ def main() -> None:
     n_accepted = 0
     for i, (split, img_path) in enumerate(image_paths):
         stem = img_path.stem
+        roboflow_bbox_count: int | None = None
+        if args.use_bbox_oracle:
+            rf_label = ROBOFLOW_ROOT / "labels" / split / f"{stem}.txt"
+            if rf_label.exists():
+                roboflow_bbox_count = count_vertebrae_in_label_file(rf_label)
         try:
             image_tensor = _preprocess_image_for_inference(img_path)
             mask, conf = ensemble_predict(predictors, image_tensor, tta=args.tta)
             pred = {"pred_mask": mask, "confidence_map": conf}
-            accepted, reason = pseudo_label_passes_quality(pred)
+            accepted, reason = pseudo_label_passes_quality(
+                pred, roboflow_bbox_count=roboflow_bbox_count
+            )
         except Exception as e:
             accepted = False
             reason = f"exception: {type(e).__name__}: {e}"
@@ -259,6 +293,12 @@ def main() -> None:
             "n_vertebrae": len(nonzero_classes),
             "fg_frac": fg_frac,
             "mean_fg_confidence": mean_fg_conf,
+            "roboflow_bbox_count": roboflow_bbox_count if roboflow_bbox_count is not None else -1,
+            "bbox_oracle_used": (
+                args.use_bbox_oracle
+                and roboflow_bbox_count is not None
+                and roboflow_bbox_count >= MIN_VERTEBRAE_FOR_PSEUDO_LABEL
+            ),
         })
 
         if accepted:

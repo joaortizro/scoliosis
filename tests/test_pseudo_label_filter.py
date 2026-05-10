@@ -21,6 +21,8 @@ from scripts.pseudo_label_roboflow import (
     MIN_VERTEBRAE_FOR_PSEUDO_LABEL,
     MIN_FG_FRAC,
     MAX_FG_FRAC,
+    SALVAGE_MIN_VERTEBRAE,
+    SALVAGE_MIN_MEAN_CONFIDENCE,
     pseudo_label_passes_quality,
 )
 
@@ -91,3 +93,55 @@ def test_thresholds_match_documented_values() -> None:
     assert MIN_MEAN_CONFIDENCE == 0.70
     assert MIN_FG_FRAC == 0.005
     assert MAX_FG_FRAC == 0.40
+    assert SALVAGE_MIN_VERTEBRAE == 10
+    assert SALVAGE_MIN_MEAN_CONFIDENCE == 0.55
+
+
+# -- bbox-oracle salvage path ------------------------------------------------
+
+
+def test_salvages_with_bbox_oracle_when_pred_is_borderline() -> None:
+    """Pred has 12 vertebrae + conf 0.60 (rejected by strict thresholds);
+    Roboflow bbox count = 17 (human-confirmed full coverage) → salvaged."""
+    h, w = 256, 512
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for v in range(1, 13):   # 12 distinct vertebrae predicted
+        mask[30 + (v - 1) * 12 : 30 + (v - 1) * 12 + 5, 200:300] = v
+    conf = np.full((h, w), 0.60, dtype=np.float32)
+    pred = _make_pred(mask, conf)
+
+    # Strict path rejects
+    accepted_strict, _ = pseudo_label_passes_quality(pred)
+    assert not accepted_strict
+
+    # Bbox-oracle path with rf=17 accepts
+    accepted_salvage, _ = pseudo_label_passes_quality(pred, roboflow_bbox_count=17)
+    assert accepted_salvage
+
+
+def test_does_not_salvage_when_bbox_oracle_says_partial_coverage() -> None:
+    """Pred has 12 vertebrae + conf 0.60; Roboflow bbox count = 8 (truly
+    partial coverage) → rejected even under salvage rules."""
+    h, w = 256, 512
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for v in range(1, 13):
+        mask[30 + (v - 1) * 12 : 30 + (v - 1) * 12 + 5, 200:300] = v
+    conf = np.full((h, w), 0.60, dtype=np.float32)
+    pred = _make_pred(mask, conf)
+
+    accepted, _ = pseudo_label_passes_quality(pred, roboflow_bbox_count=8)
+    assert not accepted
+
+
+def test_salvage_path_still_enforces_minimum_thresholds() -> None:
+    """Even with rf=17, pred=8 vertebrae and conf=0.40 are too far below
+    salvage thresholds — still rejected."""
+    h, w = 256, 512
+    mask = np.zeros((h, w), dtype=np.uint8)
+    for v in range(1, 9):   # 8 vertebrae
+        mask[30 + (v - 1) * 12 : 30 + (v - 1) * 12 + 5, 200:300] = v
+    conf = np.full((h, w), 0.40, dtype=np.float32)
+    pred = _make_pred(mask, conf)
+
+    accepted, reason = pseudo_label_passes_quality(pred, roboflow_bbox_count=17)
+    assert not accepted
