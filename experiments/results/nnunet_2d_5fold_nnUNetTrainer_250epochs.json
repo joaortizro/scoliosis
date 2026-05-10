@@ -1,0 +1,36 @@
+{
+  "phase": "nnunet_2d_5fold_partial_truncated",
+  "trainer": "nnUNetTrainer_250epochs",
+  "dataset": "Dataset002_Spine",
+  "status": "truncated_after_fold_1",
+  "reason": "fold 0 per-class Dice 0.5774 below decision-tree stop threshold (<0.70). fold 1 = 0.6908 still below Phase 1.2 floor 0.6946. Variance \u0394=0.114 indicates data ceiling not model ceiling.",
+  "mean_dice_2fold": 0.6340990135214679,
+  "std_dice_2fold": 0.05674336376803518,
+  "n_folds": 2,
+  "folds": [
+    {
+      "fold": 0,
+      "per_class_mean_dice": 0.5773556497534328,
+      "per_class_std_dice": 0.060094664837361776,
+      "per_class_min": 0.3650917790831945,
+      "per_class_max": 0.6357192518273334,
+      "foreground_mean_dice": 0.5773556497534328,
+      "l5_dice": 0.3650917790831945
+    },
+    {
+      "fold": 1,
+      "per_class_mean_dice": 0.6908423772895032,
+      "per_class_std_dice": 0.041203899997481294,
+      "per_class_min": 0.5719034026834717,
+      "per_class_max": 0.7672101070567551,
+      "foreground_mean_dice": 0.6908423772895032,
+      "l5_dice": 0.5719034026834717
+    }
+  ],
+  "phase1_2_5fold_mean_reference": 0.6946,
+  "user_target_dice": 0.75,
+  "thesis_target_dice": 0.78,
+  "verdict": "NEGATIVE \u2014 nnU-Net does not beat Phase 1.2 on this dataset. Pivot to Path B (Roboflow detector pretrain).",
+  "cost_usd_estimate": 19,
+  "wall_hours": 7.2
+}
