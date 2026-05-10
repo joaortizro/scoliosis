@@ -1,0 +1,53 @@
+{
+  "mean_dice": 0.6946404814720154,
+  "std_dice": 0.020529022002984832,
+  "min_dice": 0.6708425283432007,
+  "max_dice": 0.7189825177192688,
+  "n_folds": 5,
+  "total_time_sec": 19887.02335882187,
+  "single_split_reference": 0.6739,
+  "gate_threshold_dice": 0.665,
+  "thesis_target_dice": 0.78,
+  "folds": [
+    {
+      "fold": 0,
+      "split_hash": "3c26422189d7822f",
+      "best_val_dice": 0.6708425283432007,
+      "best_source": "live",
+      "total_time_sec": 3835.1249685287476,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260509_194823_b41714d16d325371"
+    },
+    {
+      "fold": 1,
+      "split_hash": "3aeb683b2c828fe6",
+      "best_val_dice": 0.6931906342506409,
+      "best_source": "live",
+      "total_time_sec": 3856.72771859169,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260509_205219_6895f9edea602bfd"
+    },
+    {
+      "fold": 2,
+      "split_hash": "10d600a04d9c1ef7",
+      "best_val_dice": 0.6733469367027283,
+      "best_source": "live",
+      "total_time_sec": 3058.6283690929413,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260509_215636_701388d2e69d1a77"
+    },
+    {
+      "fold": 3,
+      "split_hash": "6faf3bcb2a1717d1",
+      "best_val_dice": 0.7168397903442383,
+      "best_source": "live",
+      "total_time_sec": 4501.714461565018,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260509_224736_213128652dc85e86"
+    },
+    {
+      "fold": 4,
+      "split_hash": "d6fbf7c4d7fe9417",
+      "best_val_dice": 0.7189825177192688,
+      "best_source": "live",
+      "total_time_sec": 4629.722200393677,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260510_000239_d7ed0282aa9c5883"
+    }
+  ]
+}
