@@ -1,4 +1,4 @@
-"""Endplate-slope Cobb angle computation (canonical Wu/Khanal/BoostNet formulation).
+"""Endplate-slope Cobb angle computation — canonical + robust variants.
 
 Spec: docs/superpowers/specs/2026-05-10-path-b-detection-cobb-design.md §4 step [4].
 
@@ -149,6 +149,110 @@ def cobb_from_midline_slopes(slopes: np.ndarray) -> tuple[float, dict[str, Any]]
     info["max_slope_deg"] = max_slope
     info["min_slope_deg"] = min_slope
     return float(cobb), info
+
+
+def cobb_segment_aware(slopes: np.ndarray) -> tuple[float, dict[str, Any]]:
+    """Segment-aware Cobb — handles S-curves correctly.
+
+    Detects inflection points (local extrema of the smoothed slope sequence)
+    and computes the largest |slope_max - slope_min| within any single
+    monotonic segment. Avoids the pairwise-max inflation on S-curves where
+    `max(slope) - min(slope)` would combine two opposite curves.
+
+    Algorithm:
+        1. Drop NaN, optionally smooth with median filter (k=3)
+        2. Walk the sequence, splitting at sign changes of consecutive
+           slope differences (these are slope-direction reversals = the
+           classical inflection points of the spinal curve)
+        3. For each segment between reversals (inclusive of endpoints),
+           compute max(slope) - min(slope)
+        4. Return the largest such value
+    """
+    valid = np.isfinite(slopes)
+    n_valid = int(valid.sum())
+    info: dict[str, Any] = {
+        "n_valid_vertebrae": n_valid,
+        "n_segments": 0,
+        "primary_segment_range_deg": float("nan"),
+    }
+    if n_valid < MIN_VALID_VERTEBRAE_FOR_COBB:
+        return 0.0, info
+
+    s = slopes[valid].astype(np.float64)
+
+    # Count slope-direction reversals to distinguish C-curve from S-curve
+    diffs = np.diff(s)
+    reversals = 0
+    prev_sign = 0
+    for d in diffs:
+        sign = int(np.sign(d))
+        if sign == 0:
+            continue
+        if prev_sign != 0 and sign != prev_sign:
+            reversals += 1
+        prev_sign = sign
+
+    # C-curve heuristic: ≤ 1 reversal → treat as single curve, full max-min
+    if reversals <= 1:
+        primary = float(s.max() - s.min())
+        info["n_segments"] = 1
+        info["primary_segment_range_deg"] = primary
+        return primary, info
+
+    # S-curve / multi-curve: split at zero-crossings of slope
+    # (where the spine transitions from one curve direction to another)
+    crossing_idx: list[int] = [0]
+    for i in range(1, len(s)):
+        if (s[i - 1] > 0 and s[i] < 0) or (s[i - 1] < 0 and s[i] > 0) or s[i] == 0:
+            crossing_idx.append(i)
+    crossing_idx.append(len(s) - 1)
+    crossing_idx = sorted(set(crossing_idx))
+
+    segment_ranges: list[float] = []
+    for k in range(len(crossing_idx) - 1):
+        a, b = crossing_idx[k], crossing_idx[k + 1]
+        seg = s[a : b + 1]
+        if len(seg) < 2:
+            continue
+        segment_ranges.append(float(seg.max() - seg.min()))
+
+    if not segment_ranges:
+        # Fall back to full max-min
+        primary = float(s.max() - s.min())
+        info["n_segments"] = 1
+        info["primary_segment_range_deg"] = primary
+        return primary, info
+
+    primary = max(segment_ranges)
+    info["n_segments"] = len(segment_ranges)
+    info["primary_segment_range_deg"] = primary
+    return primary, info
+
+
+def cobb_pctile_trim(
+    slopes: np.ndarray,
+    lo_pct: float = 5.0,
+    hi_pct: float = 95.0,
+) -> tuple[float, dict[str, Any]]:
+    """Percentile-trimmed pairwise-max Cobb.
+
+    Drops slopes below `lo_pct` and above `hi_pct` percentiles before
+    computing max-min. Suppresses single-vertebra outliers from
+    PCA-flipped corner regression without changing the multi-curve
+    geometry inflation issue (use `cobb_segment_aware` for that).
+    """
+    valid = np.isfinite(slopes)
+    info: dict[str, Any] = {
+        "n_valid_vertebrae": int(valid.sum()),
+        "lo_pct": lo_pct,
+        "hi_pct": hi_pct,
+    }
+    if valid.sum() < MIN_VALID_VERTEBRAE_FOR_COBB:
+        return 0.0, info
+    s = slopes[valid]
+    lo = np.percentile(s, lo_pct)
+    hi = np.percentile(s, hi_pct)
+    return float(hi - lo), info
 
 
 def cobb_from_keypoints_endplate(keypoints: np.ndarray) -> tuple[float, dict[str, Any]]:
