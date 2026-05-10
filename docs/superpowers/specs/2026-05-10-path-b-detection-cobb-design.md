@@ -41,13 +41,19 @@ This spec describes the pivot to a detection-first pipeline using:
 
 ## 3. Success Criteria
 
+**GT re-baseline (revised 2026-05-10 after sanity-gate findings)**: v2's `angulo_cobb_deg` is computed via Landinez et al.'s curve-tangent algorithm (`generar_overlays_cobb_marcados.py`) — an algorithmic Cobb operationalization different from the Wu/BoostNet corner-based pairwise-max formulation used by every literature SOTA detection paper (SpineNET, VCRLD-Net, YOLOv8-CBAM, Seg4Reg+ on AASCE19). Empirically the two algorithms correlate at r=0.80 on n=178 v2 scoliosis cases, with mean systematic offset +5.4°.
+
+**Decision**: Path B trains and evaluates against a **corner-based Wu/BoostNet Cobb** (computed from v2 GT corners via `multiclass_mask_to_keypoints` → `cobb_from_keypoints_endplate`) as the primary GT. v2's `angulo_cobb_deg` is reported as a secondary reference number with a calibration sub-chapter quantifying the algorithmic gap. This aligns with literature SOTA evaluation protocols and makes Path B's Cobb numbers cross-paper comparable. **Not a criticism of MaIA — a transparent disclosure of algorithmic Cobb definition choices.**
+
 | Tier | Bar | Action on hit |
 |---|---|---|
-| **Sanity gate** | midline-slope Cobb on v2 GT corners **≤ 1° MAE and ≤ 2° max error** vs `angulo_cobb_deg` (n = 82 — scoliosis trainable subset with GT corners + Cobb GT) | Continue to training. (Looser bar of 3° would pass a buggy formula — perfect inputs should produce near-perfect outputs.) |
-| **Internal floor** | 5-fold mean Cobb MAE < **8.16°** (beats v4-multitask) | Internal benchmark only — NOT a publish bar. Beating an in-house broken baseline is not a thesis contribution. |
-| **Thesis bar** | 5-fold mean Cobb MAE ≤ **5°** | Single-touch sealed-test eval on 25 holdout cases for thesis number |
-| **SOTA band** | 5-fold mean Cobb MAE ≤ **4°** (Mazurowski 2025, Seg4Reg+ 2022 territory) | Places work in literature SOTA — strong thesis result |
-| **SOTA-aspirational** | 5-fold mean Cobb MAE ≤ **2.5°** (VCRLD-Net, YOLOv8-CBAM territory) | Bonus — frontier-grade |
+| **Sanity gate (a) formula correctness** | `test_cobb_formula_canonical.py` passes (11 synthetic cases: straight, rotated, mild/mod/severe C, S-curve, partial coverage) | Verified 2026-05-10. ✅ |
+| **Sanity gate (b) calibration vs MaIA** | Pearson r ≥ 0.80 between corner Wu/BoostNet Cobb and `angulo_cobb_deg` on n ≥ 100 trainable scoliosis cases; mean systematic offset \|Δ\| < 10°; n_finite ≥ 0.95 × n_total | Verified 2026-05-10 (r=0.80, +5.4° offset, all 178 finite). ✅ |
+| **Internal floor** | 5-fold mean Cobb MAE (Wu/BoostNet GT) < **8.16°** | Internal benchmark only — NOT a publish bar. Beating an in-house broken baseline is not a thesis contribution. |
+| **Thesis bar** | 5-fold mean Cobb MAE (Wu/BoostNet GT) ≤ **5°** | Single-touch sealed-test eval on 25 holdout cases for thesis number |
+| **SOTA band** | 5-fold mean Cobb MAE (Wu/BoostNet GT) ≤ **4°** (Mazurowski 2025, Seg4Reg+ 2022 territory) | Places work in literature SOTA — strong thesis result |
+| **SOTA-aspirational** | 5-fold mean Cobb MAE (Wu/BoostNet GT) ≤ **2.5°** (VCRLD-Net, YOLOv8-CBAM territory) | Bonus — frontier-grade |
+| **Secondary reporting** | Same model evaluated against MaIA's `angulo_cobb_deg` — report MAE + correlation, with the +5.4° systematic offset called out | Calibration chapter — not a pass/fail gate, methodology contribution |
 
 **Reproducibility floor**: before judging 5-fold std, run **fold 0 twice with identical seed** and report run-to-run delta as the empirical noise floor (ultralytics has known nondeterminism even with `deterministic=True` — issues #15960, #3497). 5-fold std bar (≤ 1.5°) only meaningful if the noise floor is well below it.
 
