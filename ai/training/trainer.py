@@ -165,6 +165,21 @@ def build_dataloaders(
     pre_cfg = train_cfg.get("preprocess", {})
 
     parts = materialize(data_cfg["clean_index"], spec)
+
+    # Phase 1.4 self-training: optionally append pseudo-labeled rows to TRAIN ONLY.
+    # `data.extra_train_csv` is a CSV with at minimum `image_path` +
+    # `multiclass_mask_path` columns. Val and test are NEVER touched —
+    # pseudo-labels are train-only data augmentation, evaluation stays
+    # on clean v2 GT.
+    extra_csv = data_cfg.get("extra_train_csv")
+    if extra_csv:
+        extra_df = pd.read_csv(extra_csv)
+        required = {"image_path", "multiclass_mask_path"}
+        missing = required - set(extra_df.columns)
+        if missing:
+            raise ValueError(f"extra_train_csv missing required columns: {missing}")
+        parts["train"] = pd.concat([parts["train"], extra_df], ignore_index=True)
+
     augment_fn = _resolve_augment(str(train_cfg["augment"]))
 
     clahe_mode = str(pre_cfg.get("clahe_mode", "off"))
