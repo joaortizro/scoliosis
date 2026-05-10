@@ -29,36 +29,66 @@ log = logging.getLogger(__name__)
 
 
 def _post_run_hook(out_path: Path, summary: dict, *, self_stop: bool) -> None:
-    """Push checkpoints+sentinel to remote so a fresh box can recover them,
+    """Push checkpoints + sentinel to remote so a fresh box can recover them,
     then optionally power off the host (EBS default = stop on shutdown,
-    needs no IAM ec2:StopInstances)."""
+    needs no IAM ec2:StopInstances).
+
+    Per ``feedback_save_model_weights.md``, every fold's run_dir under
+    ``ai/models/checkpoints/`` is ``dvc add``-ed before the ``dvc push`` so
+    the heavy artifacts actually land in S3. Without this step the trainer
+    leaves weights only on the ephemeral host and a stop loses them.
+    """
     repo_root = Path(__file__).resolve().parent.parent
-    log.info("post-run hook: dvc push + git push sentinel; self_stop=%s", self_stop)
+    out_abs = out_path.resolve()
+    log.info("post-run hook: dvc add+push checkpoints + git push sentinel; self_stop=%s", self_stop)
+
+    new_dvc_files: list[str] = []
+    for fold in summary.get("folds", []):
+        run_dir = fold.get("run_dir")
+        if not run_dir:
+            continue
+        try:
+            subprocess.run(
+                ["dvc", "add", run_dir],
+                cwd=repo_root, check=False, timeout=300,
+            )
+            new_dvc_files.append(f"{run_dir}.dvc")
+        except Exception as exc:
+            log.warning("dvc add %s failed: %s", run_dir, exc)
 
     try:
         subprocess.run(
-            ["dvc", "push"], cwd=repo_root, check=False, timeout=900,
+            ["dvc", "push"] + new_dvc_files,
+            cwd=repo_root, check=False, timeout=1800,
         )
     except Exception as exc:
         log.warning("dvc push failed: %s", exc)
 
     try:
+        sentinel_rel = str(out_abs.relative_to(repo_root))
+        git_paths = ["-f", sentinel_rel]
+        for dvc_file in new_dvc_files:
+            git_paths.extend(["-f", dvc_file])
         subprocess.run(
-            ["git", "add", str(out_path.relative_to(repo_root))],
+            ["git", "add", *git_paths],
             cwd=repo_root, check=False,
         )
         msg = (
-            f"phase1_2 5-fold sentinel: mean={summary['mean_dice']:.4f} "
-            f"std={summary['std_dice']:.4f} n={summary['n_folds']}"
+            f"phase1_2 5-fold sentinel + checkpoints: "
+            f"mean={summary['mean_dice']:.4f} std={summary['std_dice']:.4f} "
+            f"n={summary['n_folds']}"
         )
         subprocess.run(
-            ["git", "commit", "-m", msg], cwd=repo_root, check=False,
+            ["git", "-c", "user.email=ec2-auto@scoliosis", "-c", "user.name=EC2 auto",
+             "commit", "-m", msg],
+            cwd=repo_root, check=False,
         )
         subprocess.run(
-            ["git", "push", "origin", "HEAD"], cwd=repo_root, check=False, timeout=120,
+            ["git", "push", "origin", "HEAD"],
+            cwd=repo_root, check=False, timeout=120,
         )
     except Exception as exc:
-        log.warning("git push failed: %s", exc)
+        log.warning("git commit/push failed: %s", exc)
 
     if not self_stop:
         log.info("self_stop disabled — leaving box up")
