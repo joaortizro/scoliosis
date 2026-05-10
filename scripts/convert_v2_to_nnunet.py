@@ -61,6 +61,12 @@ def _to_nifti(arr_2d: np.ndarray) -> nib.Nifti1Image:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--clean-index", default="data/processed/audit_v2_corrected/clean_index.csv")
+    parser.add_argument(
+        "--test-holdout-csv",
+        default=None,
+        help="Optional. If given, EXCLUDES these (category, patient_id) cases from the "
+             "exported dataset so nnU-Net's internal CV cannot leak the sealed test set.",
+    )
     parser.add_argument("--out-dir", required=True, help="$nnUNet_raw")
     parser.add_argument("--dataset-id", default="001")
     parser.add_argument("--dataset-name", default="Spine")
@@ -72,6 +78,20 @@ def main() -> int:
     df = pd.read_csv(args.clean_index)
     rows = trainable_rows(df, min_target_count=args.min_target_count)
     log.info("trainable rows: %d (full clean_index: %d)", len(rows), len(df))
+
+    if args.test_holdout_csv is not None:
+        holdout = pd.read_csv(args.test_holdout_csv)
+        holdout_keys = set(zip(holdout["category"].astype(str), holdout["patient_id"].astype(int)))
+        before = len(rows)
+        mask = ~rows.apply(
+            lambda r: (str(r["category"]), int(r["patient_id"])) in holdout_keys,
+            axis=1,
+        )
+        rows = rows[mask]
+        log.info(
+            "excluded %d test_holdout cases (%d -> %d trainable for nnU-Net CV)",
+            before - len(rows), before, len(rows),
+        )
 
     base = Path(args.out_dir) / f"Dataset{args.dataset_id}_{args.dataset_name}"
     images_tr = base / "imagesTr"
