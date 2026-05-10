@@ -1,0 +1,49 @@
+{
+  "weights": "ai/models/checkpoints/yolo_vertebra/20260510_204504_v2_fold0_init-pretrain/weights/best.pt",
+  "fold": 0,
+  "n_val_images": 43,
+  "n_maia_valid": 35,
+  "variants": [
+    "naive",
+    "pctile_5_95",
+    "segment"
+  ],
+  "per_variant": {
+    "naive": {
+      "vs_gt_self": {
+        "mae_deg": 25.13873463133865,
+        "median_deg": 13.402588883955374,
+        "max_deg": 76.87042336894926
+      },
+      "vs_maia": {
+        "mae_deg": 21.72733170907932,
+        "median_deg": 20.214120876959527,
+        "max_deg": 54.081314086887645
+      }
+    },
+    "pctile_5_95": {
+      "vs_gt_self": {
+        "mae_deg": 19.563862587540847,
+        "median_deg": 12.38016170438599,
+        "max_deg": 72.0577286866627
+      },
+      "vs_maia": {
+        "mae_deg": 25.46335334795952,
+        "median_deg": 23.938262753270642,
+        "max_deg": 55.10515384671431
+      }
+    },
+    "segment": {
+      "vs_gt_self": {
+        "mae_deg": 23.422597396252705,
+        "median_deg": 10.56070648684544,
+        "max_deg": 60.32862527847942
+      },
+      "vs_maia": {
+        "mae_deg": 32.21211357682636,
+        "median_deg": 31.0566427135252,
+        "max_deg": 65.28674417732144
+      }
+    }
+  }
+}

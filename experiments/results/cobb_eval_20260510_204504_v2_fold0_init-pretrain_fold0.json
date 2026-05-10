@@ -1,0 +1,14 @@
+{
+  "weights": "ai/models/checkpoints/yolo_vertebra/20260510_204504_v2_fold0_init-pretrain/weights/best.pt",
+  "fold": 0,
+  "n_val_images": 43,
+  "n_wu_valid": 43,
+  "n_maia_valid": 35,
+  "wu_mae_deg": 25.13873463133865,
+  "wu_median_err_deg": 13.402588883955374,
+  "wu_max_err_deg": 76.87042336894926,
+  "maia_mae_deg": 21.72733170907932,
+  "maia_median_err_deg": 20.214120876959527,
+  "maia_max_err_deg": 54.081314086887645,
+  "mean_n_detections": 17.6046511627907
+}
