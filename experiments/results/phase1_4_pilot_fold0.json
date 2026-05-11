@@ -1,0 +1,22 @@
+{
+  "phase": "1.4-pilot",
+  "fold": 0,
+  "split_hash": "3c26422189d7822f",
+  "v2_train_count": 180,
+  "pseudo_train_count": 421,
+  "total_train_count": 601,
+  "v2_val_count": 44,
+  "best_val_dice": 0.635488748550415,
+  "best_source": "live",
+  "total_time_sec": 7743.757184267044,
+  "phase1_2_5fold_mean_reference": 0.6946,
+  "phase1_2_5fold_std_reference": 0.0205,
+  "user_target_dice": 0.75,
+  "decision_gates": {
+    ">= 0.75": "user target hit (single fold; verify with 5-fold)",
+    "0.71 .. 0.75": "real lift over Phase 1.2 baseline; run 5-fold",
+    "0.69 .. 0.71": "statistical tie with Phase 1.2; pseudo not helping; stop",
+    "< 0.69": "pseudo HURTING; tighten filter or stop"
+  },
+  "run_dir": "ai/models/checkpoints/encoder_unet/20260510_234120_57c6c9a6a3b02c61"
+}
