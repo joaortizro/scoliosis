@@ -36,8 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ai.training.dataset import IMG_H, IMG_W  # noqa: E402  — must come after path insert
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PSEUDO_ROOT = REPO_ROOT / "data" / "processed" / "roboflow_pseudo_labels"
 ROBOFLOW_ROOT = REPO_ROOT / "data" / "raw" / "roboflow_scoliosis_v16"
+PSEUDO_ROOT = REPO_ROOT / "data" / "processed" / "roboflow_pseudo_labels"
 OUT_DIR = PSEUDO_ROOT / "inspection"
 
 NUM_VERTEBRA_CLASSES = 17
@@ -173,9 +173,13 @@ def main() -> None:
     ap.add_argument("--n-strict", type=int, default=5)
     ap.add_argument("--n-salvage", type=int, default=5)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--pseudo-root", type=Path, default=PSEUDO_ROOT,
+                    help="directory containing manifest.csv + masks/")
     args = ap.parse_args()
 
-    manifest = pd.read_csv(PSEUDO_ROOT / "manifest.csv")
+    pseudo_root = args.pseudo_root
+    out_dir = pseudo_root / "inspection"
+    manifest = pd.read_csv(pseudo_root / "manifest.csv")
     accepted = manifest[manifest["accepted"] == True].copy()
 
     strict_only = accepted[
@@ -199,7 +203,7 @@ def main() -> None:
             stem = row["stem"]
             split = row["split"]
             image_path = ROBOFLOW_ROOT / "images" / split / f"{stem}.jpg"
-            mask_path = PSEUDO_ROOT / "masks" / f"{stem}.png"
+            mask_path = pseudo_root / "masks" / f"{stem}.png"
             if not image_path.exists() or not mask_path.exists():
                 print(f"  [SKIP] {stem}: missing files")
                 continue
@@ -220,7 +224,7 @@ def main() -> None:
                 f"conf={metrics['mean_fg_conf']:.2f}  "
                 f"mean_dist={metrics['mean_nearest_dist_norm']:.3f}"
             )
-            out_path = OUT_DIR / f"{tag}_{stem}.png"
+            out_path = out_dir /f"{tag}_{stem}.png"
             _render_composite(img, mask, rf_bboxes, out_path, title)
             print(f"  [{tag}] {stem}: n_pred={metrics['n_pred']} "
                   f"rf={metrics['n_rf']} mean_dist={metrics['mean_nearest_dist_norm']:.3f} "
@@ -228,14 +232,14 @@ def main() -> None:
                   f"max_dist={metrics['max_nearest_dist_norm']:.3f}")
 
     df = pd.DataFrame(rows)
-    csv_path = OUT_DIR / "alignment_metrics.csv"
+    csv_path = out_dir /"alignment_metrics.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(csv_path, index=False)
     print()
     print("=== summary by tag ===")
     print(df.groupby("tag")[["mean_nearest_dist_norm", "median_nearest_dist_norm",
                               "max_nearest_dist_norm", "n_pred", "n_rf"]].agg(["mean", "std"]))
-    print(f"\nPNGs in: {OUT_DIR}")
+    print(f"\nPNGs in: {out_dir}")
     print(f"CSV:     {csv_path}")
 
 
