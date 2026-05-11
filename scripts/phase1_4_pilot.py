@@ -71,13 +71,25 @@ def build_extra_train_csv(
     masks_dir: Path,
     roboflow_images_root: Path,
     out_csv: Path,
+    strict_only: bool = False,
 ) -> int:
     """Read pseudo-label manifest, emit CSV with image_path + mask_path for accepted rows.
+
+    Args:
+        strict_only: if True, drop bbox-oracle-salvaged rows (n_vertebrae<14 or conf<0.70).
+            Salvage rows have systematic under-coverage that degrades training Dice
+            (confirmed by scripts/inspect_pseudo_labels.py: salvage mean pred vertebrae 12
+            vs strict 17, 2× worse alignment to Roboflow bboxes).
 
     Returns the number of rows written.
     """
     manifest = pd.read_csv(manifest_csv)
     accepted = manifest[manifest["accepted"] == True].copy()
+    if strict_only:
+        accepted = accepted[
+            (accepted["n_vertebrae"] >= 14)
+            & (accepted["mean_fg_confidence"] >= 0.70)
+        ].copy()
 
     def _image_path(stem: str, split: str) -> str:
         return str(roboflow_images_root / split / f"{stem}.jpg")
@@ -109,11 +121,14 @@ def build_extra_train_csv(
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--params", default="params.yaml")
-    parser.add_argument("--out", default="experiments/results/phase1_4_pilot_fold0.json")
+    parser.add_argument("--out", default=None,
+                        help="default: experiments/results/phase1_4_pilot_fold{F}[_strict].json")
     parser.add_argument("--fold", type=int, default=0, choices=[0, 1, 2, 3, 4])
     parser.add_argument("--pseudo-manifest", type=Path, default=DEFAULT_PSEUDO_MANIFEST)
     parser.add_argument("--pseudo-masks-dir", type=Path, default=DEFAULT_PSEUDO_MASKS)
     parser.add_argument("--roboflow-images-root", type=Path, default=ROBOFLOW_IMAGES_ROOT)
+    parser.add_argument("--strict-only", action="store_true",
+                        help="drop bbox-oracle-salvaged rows; use only strict-threshold accepts")
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args()
 
@@ -135,12 +150,14 @@ def main() -> int:
     cfg["train"]["num_workers"] = 3
 
     # Build extra-train CSV from manifest
-    extra_csv = REPO_ROOT / "data" / "processed" / "roboflow_pseudo_labels" / "extra_train_rows.csv"
+    csv_suffix = "_strict" if args.strict_only else ""
+    extra_csv = REPO_ROOT / "data" / "processed" / "roboflow_pseudo_labels" / f"extra_train_rows{csv_suffix}.csv"
     n_extra = build_extra_train_csv(
         args.pseudo_manifest,
         args.pseudo_masks_dir,
         args.roboflow_images_root,
         extra_csv,
+        strict_only=args.strict_only,
     )
     cfg["data"]["extra_train_csv"] = str(extra_csv)
     log.info("pseudo-label extra-train rows: %d → %s", n_extra, extra_csv)
@@ -188,7 +205,11 @@ def main() -> int:
         "run_dir": result["run_dir"],
     }
 
-    out_path = Path(args.out)
+    if args.out is None:
+        suffix = "_strict" if args.strict_only else ""
+        out_path = Path(f"experiments/results/phase1_4_pilot_fold{args.fold}{suffix}.json")
+    else:
+        out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(summary, indent=2, default=str))
 
