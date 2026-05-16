@@ -34,7 +34,8 @@ mlflow/mlruns/
 .ipynb_checkpoints/
 notebooks/**/*.html
 
-# Sandbox-generated visualizations (regenerable from scripts + DVC-tracked checkpoints)
+# Sandbox-generated visualizations (regenerable from scripts + DVC-tracked checkpoints).
+# Patient-derived images are confidential — keep them OUT of git; render to this dir.
 notebooks/sandbox/**/viz_*/
 
 # MLflow
