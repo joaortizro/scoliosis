@@ -35,6 +35,17 @@ train:
     enabled: false           # Phase 1.3a flips this to true
     prob: 0.5                # per-batch probability of applying CutMix
     rect_frac_range: [0.1, 0.4]  # uniform over this range for rect side as fraction of (H, W)
+  aug:
+    random_vertical_crop:    # Partial-FOV experiment (set augment=v4_vcrop_{gentle,aggressive})
+      enabled: false         # informational; wiring is via the train.augment registry name
+      p: 0.5                 # per-image probability when augment is a vcrop variant
+      f_min: 0.5             # M1a (gentle)=0.5, M1b (aggressive)=0.3
+      f_max: 1.0
+      mode: random           # train-time mode: random | top | bottom | mid
+  eval_partial_fov:
+    coverage_fractions: [1.0, 0.8, 0.6, 0.5, 0.4, 0.3, 0.2]
+    modes: [top, bottom, mid, random]
+    random_seed: 42          # seed for the deterministic-but-random mode at eval
 
 evaluate:
   metrics_path: experiments/results/metrics.json
