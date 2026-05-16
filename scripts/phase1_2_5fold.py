@@ -108,6 +108,12 @@ def _post_run_hook(out_path: Path, summary: dict, *, self_stop: bool) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--params", default="params.yaml")
+    parser.add_argument(
+        "--phase0-summary",
+        default="experiments/results/phase0_summary.json",
+        help="Phase 0 summary JSON; picks max-Dice entry's clahe_mode + boundary_lambda. "
+             "Must match the one used by scripts/phase1_2_d1_roi.py to keep cfg-hash stable.",
+    )
     parser.add_argument("--out", default="experiments/results/phase1_2_5fold.json")
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument(
@@ -128,12 +134,23 @@ def main() -> int:
     with open(args.params) as f:
         cfg = yaml.safe_load(f)
 
-    # Phase 1.2 cfg — must match scripts/phase1_2_d1_roi.py to keep the
-    # cfg-hash stable across the single-split (0.6739) and 5-fold runs.
+    with open(args.phase0_summary) as f:
+        ph0 = json.load(f)
+    best = max(ph0["results"], key=lambda r: r["best_val_dice"])
+    log.info(
+        "Phase 0 winner: %s dice=%.4f clahe=%s boundary=%.3f",
+        best["name"], best["best_val_dice"], best["clahe_mode"], best["boundary_lambda"],
+    )
+
+    # Phase 1.2 cfg — reads from phase0_summary.json instead of hardcoding
+    # so it stays consistent with scripts/phase1_2_d1_roi.py (advisor-filed
+    # item B, 2026-05-09). On the canonical DirectML summary this resolves
+    # to D1 (clahe=off, boundary=0.05) — same cfg-hash as prior runs;
+    # cache stays valid.
     cfg["train"]["encoder_name"] = "resnet34"
-    cfg["train"]["preprocess"]["clahe_mode"] = "off"
+    cfg["train"]["preprocess"]["clahe_mode"] = best["clahe_mode"]
     cfg["train"]["preprocess"]["normalization"] = "div255"
-    cfg["train"]["loss"]["boundary_lambda"] = 0.05
+    cfg["train"]["loss"]["boundary_lambda"] = float(best["boundary_lambda"])
     cfg["train"]["ema"]["enabled"] = True
     cfg["train"]["preprocess"]["roi_crop"] = "from_mask"
 
