@@ -275,3 +275,32 @@ def augment_v4(
     if torch.rand(1).item() < 0.25:
         image = coarse_dropout(image, n_patches=12, patch_size=40)
     return image, seg
+
+
+# ---------------------------------------------------------------------------
+# v4 + RandomVerticalCrop variants — partial-FOV experiment (M1a / M1b)
+# ---------------------------------------------------------------------------
+
+from ai.preprocessing.transforms import RandomVerticalCrop  # noqa: E402
+
+# Module-level instances; the class's torch-derived RNG fallback means
+# the global torch seed (set by ``ai.utils.set_seed`` in the trainer)
+# still controls per-call randomness.
+_VCROP_GENTLE = RandomVerticalCrop(p=0.5, f_range=(0.5, 1.0), mode="random")
+_VCROP_AGGRESSIVE = RandomVerticalCrop(p=0.5, f_range=(0.3, 1.0), mode="random")
+
+
+def augment_v4_vcrop_gentle(
+    image: torch.Tensor, seg: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """v4 then RandomVerticalCrop with f∈[0.5, 1.0] (M1a)."""
+    image, seg = augment_v4(image, seg)
+    return _VCROP_GENTLE(image, seg)
+
+
+def augment_v4_vcrop_aggressive(
+    image: torch.Tensor, seg: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """v4 then RandomVerticalCrop with f∈[0.3, 1.0] (M1b)."""
+    image, seg = augment_v4(image, seg)
+    return _VCROP_AGGRESSIVE(image, seg)

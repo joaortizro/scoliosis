@@ -1,0 +1,11 @@
+{
+  "mode": "single",
+  "best_val_dice": 0.6657100915908813,
+  "best_source": "live",
+  "total_time_sec": 4350.543097019196,
+  "run_dir": "ai/models/checkpoints/encoder_unet/20260510_032552_9917036cc370e206",
+  "phase1_2_single_split_reference": 0.6739,
+  "phase1_2_5fold_mean_reference": 0.6946,
+  "gate_threshold_dice": 0.665,
+  "thesis_target_dice": 0.78
+}

@@ -1,0 +1,45 @@
+{
+  "results": [
+    {
+      "name": "B_phase0_stack",
+      "clahe_mode": "off",
+      "boundary_lambda": 0.0,
+      "best_val_dice": 0.6472554206848145,
+      "best_source": "live",
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260503_185522_d537bde6557e37c6"
+    },
+    {
+      "name": "C_phase0_clahe",
+      "clahe_mode": "real",
+      "boundary_lambda": 0.0,
+      "best_val_dice": 0.6277645230293274,
+      "best_source": "live",
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260503_201305_3dffd39c92134410"
+    },
+    {
+      "name": "D1_boundary_005",
+      "clahe_mode": "off",
+      "boundary_lambda": 0.05,
+      "best_val_dice": 0.6546098589897156,
+      "best_source": "live",
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260503_215217_9372c8f85cceff5a"
+    },
+    {
+      "name": "D2_boundary_010",
+      "clahe_mode": "off",
+      "boundary_lambda": 0.1,
+      "best_val_dice": 0.646713376045227,
+      "best_source": "live",
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260504_000809_6b6e5dd340a51a21"
+    },
+    {
+      "name": "D3_boundary_020",
+      "clahe_mode": "off",
+      "boundary_lambda": 0.2,
+      "best_val_dice": 0.6340242624282837,
+      "best_source": "live",
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260504_013252_4b4702c99e8648af"
+    }
+  ],
+  "total_time_sec": 27660.98672771454
+}

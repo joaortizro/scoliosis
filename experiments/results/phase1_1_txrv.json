@@ -1,0 +1,10 @@
+{
+  "run_dir": "ai/models/checkpoints/encoder_unet/20260507_171606_810665693d49ea80",
+  "best_val_dice": 0.5129489302635193,
+  "best_source": "live",
+  "stopped_epoch": 100,
+  "total_time_sec": 6732.910473585129,
+  "split_hash": "c33e6000d1030536",
+  "split_fold": -1,
+  "cached": false
+}

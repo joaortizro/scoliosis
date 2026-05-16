@@ -1,0 +1,6 @@
+outs:
+- md5: 17a8dbf1b895037beed12759763e4906.dir
+  size: 537825332
+  nfiles: 52
+  hash: md5
+  path: fold_0

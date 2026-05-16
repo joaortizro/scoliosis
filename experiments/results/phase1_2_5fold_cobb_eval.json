@@ -1,0 +1,165 @@
+{
+  "phase": "phase1_2_5fold_cobb_eval",
+  "source_sentinel": "experiments/results/phase1_2_5fold.json",
+  "phase1_2_5fold_dice_mean": 0.6946404814720154,
+  "phase1_2_5fold_dice_std": 0.020529022002984832,
+  "n_folds": 5,
+  "n_total": 224,
+  "n_scoliosis_with_gt": 160,
+  "cross_fold_mae_mean_deg": 28.73475227546869,
+  "cross_fold_mae_std_deg": 1.1948206378198027,
+  "pooled_mae_deg": 28.73475227546869,
+  "pooled_mdae_deg": 29.43033164590892,
+  "pooled_rmse_deg": 31.138819026203233,
+  "pooled_mae_bootstrap_95ci_deg": {
+    "lo": 26.67473240388119,
+    "hi": 30.650721865930667,
+    "n_resamples": 1000
+  },
+  "severity_stratified": {
+    "mild_lt25": {
+      "n": 1,
+      "mae_deg": 23.044815606583487,
+      "ci": {
+        "lo": 23.044815606583487,
+        "hi": 23.044815606583487,
+        "n_resamples": 1000
+      }
+    },
+    "moderate_25_40": {
+      "n": 24,
+      "mae_deg": 43.19627330684091,
+      "ci": {
+        "lo": 40.605728777331436,
+        "hi": 45.732919412134784,
+        "n_resamples": 1000
+      }
+    },
+    "severe_gte40": {
+      "n": 135,
+      "mae_deg": 26.20596288225352,
+      "ci": {
+        "lo": 24.32440092733585,
+        "hi": 28.063281600818865,
+        "n_resamples": 1000
+      }
+    }
+  },
+  "per_fold": {
+    "0": {
+      "n_total": 44,
+      "n_normal_no_gt": 12,
+      "n_scoliosis_with_gt": 32,
+      "mae_deg": 27.451690296357413,
+      "mdae_deg": 29.19450709440594,
+      "rmse_deg": 30.27513825169221,
+      "severity": {
+        "mild_lt25": {
+          "n": 0,
+          "mae_deg": null
+        },
+        "moderate_25_40": {
+          "n": 5,
+          "mae_deg": 44.00468679080799
+        },
+        "severe_gte40": {
+          "n": 27,
+          "mae_deg": 24.38632057516286
+        }
+      }
+    },
+    "1": {
+      "n_total": 45,
+      "n_normal_no_gt": 13,
+      "n_scoliosis_with_gt": 32,
+      "mae_deg": 27.14350474090712,
+      "mdae_deg": 27.324451388324434,
+      "rmse_deg": 28.897730629404283,
+      "severity": {
+        "mild_lt25": {
+          "n": 0,
+          "mae_deg": null
+        },
+        "moderate_25_40": {
+          "n": 5,
+          "mae_deg": 38.28649639193697
+        },
+        "severe_gte40": {
+          "n": 27,
+          "mae_deg": 25.07998776849419
+        }
+      }
+    },
+    "2": {
+      "n_total": 45,
+      "n_normal_no_gt": 13,
+      "n_scoliosis_with_gt": 32,
+      "mae_deg": 30.062806100278312,
+      "mdae_deg": 30.45459210208737,
+      "rmse_deg": 32.69854920576661,
+      "severity": {
+        "mild_lt25": {
+          "n": 1,
+          "mae_deg": 23.044815606583487
+        },
+        "moderate_25_40": {
+          "n": 4,
+          "mae_deg": 45.36679507367117
+        },
+        "severe_gte40": {
+          "n": 27,
+          "mae_deg": 28.055474048431027
+        }
+      }
+    },
+    "3": {
+      "n_total": 45,
+      "n_normal_no_gt": 13,
+      "n_scoliosis_with_gt": 32,
+      "mae_deg": 29.523448277289084,
+      "mdae_deg": 33.82821971244171,
+      "rmse_deg": 31.649615923140274,
+      "severity": {
+        "mild_lt25": {
+          "n": 0,
+          "mae_deg": null
+        },
+        "moderate_25_40": {
+          "n": 5,
+          "mae_deg": 41.537078901078
+        },
+        "severe_gte40": {
+          "n": 27,
+          "mae_deg": 27.298701865476325
+        }
+      }
+    },
+    "4": {
+      "n_total": 45,
+      "n_normal_no_gt": 13,
+      "n_scoliosis_with_gt": 32,
+      "mae_deg": 29.492311962511522,
+      "mdae_deg": 31.047872434999018,
+      "rmse_deg": 32.02458605197357,
+      "severity": {
+        "mild_lt25": {
+          "n": 0,
+          "mae_deg": null
+        },
+        "moderate_25_40": {
+          "n": 5,
+          "mae_deg": 47.22041373007651
+        },
+        "severe_gte40": {
+          "n": 27,
+          "mae_deg": 26.20933015370319
+        }
+      }
+    }
+  },
+  "literature_anchors": {
+    "phase1_x_segmentation_floor_v4_5fold": 8.16,
+    "human_inter_rater_sd_lit": "3-5 deg (Cobb_interrater_TraumaMeter_2022)",
+    "sota_cmae_lit_2024_2026": "2.4-4.2 deg (Mazurowski 2025, SpineNET 2026, Seg4Reg+)"
+  }
+}

@@ -17,8 +17,11 @@ build/
 # so the test slice is frozen across machines/CI without depending on DVC pull.
 !/data/processed/audit_v2_corrected/test_holdout.csv
 /ai/models/checkpoints/**
+!/ai/models/checkpoints/**/
 !/ai/models/checkpoints/**/*.dvc
-/experiments/results/
+/experiments/results/**
+!/experiments/results/**/
+!/experiments/results/*.json
 mlflow/mlruns/
 
 /context/**
@@ -30,6 +33,10 @@ mlflow/mlruns/
 # Jupyter
 .ipynb_checkpoints/
 notebooks/**/*.html
+
+# Sandbox-generated visualizations (regenerable from scripts + DVC-tracked checkpoints).
+# Patient-derived images are confidential — keep them OUT of git; render to this dir.
+notebooks/sandbox/**/viz_*/
 
 # MLflow
 mlflow/mlruns/
