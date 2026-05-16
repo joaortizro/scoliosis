@@ -76,9 +76,11 @@ def main() -> None:
     clean = pd.read_csv(CLEAN_INDEX)
     cmap = vertebra_cmap()
 
-    # Focus on the strongest claim: gt_missing_bottom (L5 issue)
-    targets = summary[summary["case_class"] == "gt_missing_bottom"].sort_values("mc_dice")
-    print(f"verifying {len(targets)} gt_missing_bottom cases (anatomical check)")
+    # Focus on the strongest claim: BOTH bottom (L5, ambiguous) AND middle (unambiguous gaps)
+    import os
+    target_class = os.environ.get("TARGET_CLASS", "gt_missing_bottom")
+    targets = summary[summary["case_class"] == target_class].sort_values("mc_dice")
+    print(f"verifying {len(targets)} {target_class} cases (anatomical check)")
 
     for _, row_sum in targets.iterrows():
         pid = int(row_sum["patient_id"])

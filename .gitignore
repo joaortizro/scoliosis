@@ -34,6 +34,9 @@ mlflow/mlruns/
 .ipynb_checkpoints/
 notebooks/**/*.html
 
+# Sandbox-generated visualizations (regenerable from scripts + DVC-tracked checkpoints)
+notebooks/sandbox/**/viz_*/
+
 # MLflow
 mlflow/mlruns/
 
