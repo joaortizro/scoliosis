@@ -30,7 +30,7 @@ _REPO = Path(__file__).resolve().parents[1]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from ai.training.splits import make_cv_folds  # noqa: E402
+from ai.training.splits import make_canonical_split, make_cv_folds  # noqa: E402
 from ai.training.trainer import run  # noqa: E402
 
 log = logging.getLogger(__name__)
@@ -117,7 +117,14 @@ def main() -> int:
         help="gentle = M1a, aggressive = M1b",
     )
     parser.add_argument("--out", default=None,
-                        help="Override sentinel path (default: experiments/results/partial_fov_<variant>_5fold.json)")
+                        help="Override sentinel path (default: experiments/results/partial_fov_<variant>_<scope>.json)")
+    parser.add_argument(
+        "--folds",
+        type=int,
+        choices=[1, 5],
+        default=1,
+        help="1 = single canonical 80/20 split (~1h, derisk pass); 5 = full CV (~5.5h).",
+    )
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--self-stop", action="store_true")
     args = parser.parse_args()
@@ -125,9 +132,10 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     augment_name = _VARIANT_AUGMENT[args.variant]
+    scope = "single" if args.folds == 1 else "5fold"
     out_path = Path(
         args.out
-        or f"experiments/results/partial_fov_{args.variant}_5fold.json"
+        or f"experiments/results/partial_fov_{args.variant}_{scope}.json"
     )
     if out_path.exists():
         log.info("sentinel %s exists — variant %s already complete, exiting",
@@ -149,17 +157,25 @@ def main() -> int:
     cfg["train"]["augment"] = augment_name
     cfg["train"]["num_workers"] = 3
 
-    splits = make_cv_folds(
-        clean_index_csv=cfg["data"]["clean_index"],
-        test_holdout_csv=cfg["data"]["test_holdout"],
-        n_splits=int(cfg["data"].get("cv_folds", 5)),
-        seed=int(cfg["data"]["random_seed"]),
-    )
+    if args.folds == 5:
+        splits = make_cv_folds(
+            clean_index_csv=cfg["data"]["clean_index"],
+            test_holdout_csv=cfg["data"]["test_holdout"],
+            n_splits=int(cfg["data"].get("cv_folds", 5)),
+            seed=int(cfg["data"]["random_seed"]),
+        )
+    else:
+        splits = [make_canonical_split(
+            clean_index_csv=cfg["data"]["clean_index"],
+            test_holdout_csv=cfg["data"]["test_holdout"],
+            val_frac=float(cfg["data"]["val_frac"]),
+            seed=int(cfg["data"]["random_seed"]),
+        )]
 
     log.info(
-        "partial-FOV %s 5-fold cfg: augment=%s encoder=%s clahe=%s boundary=%.2f "
-        "roi_crop=%s batch=%d lr_dec=%g epochs=%d folds=%d",
-        args.variant, augment_name,
+        "partial-FOV %s %s cfg: augment=%s encoder=%s clahe=%s boundary=%.2f "
+        "roi_crop=%s batch=%d lr_dec=%g epochs=%d splits=%d",
+        args.variant, scope, augment_name,
         cfg["train"]["encoder_name"],
         cfg["train"]["preprocess"]["clahe_mode"],
         cfg["train"]["loss"]["boundary_lambda"],
@@ -173,8 +189,11 @@ def main() -> int:
     fold_metrics = []
     t_start = time.time()
     for spec in splits:
-        log.info("=== fold %d/%d (split_hash=%s) ===",
-                 spec.fold + 1, len(splits), spec.hash())
+        # ``spec.fold`` is ``-1`` for the canonical 80/20 split; just label
+        # it "single" in the log.
+        fold_label = f"{spec.fold + 1}/{len(splits)}" if spec.fold >= 0 else "single"
+        log.info("=== split %s (split_hash=%s) ===",
+                 fold_label, spec.hash())
         result = run(cfg, spec=spec, use_cache=not args.no_cache)
         log.info(
             "fold %d done — best_val_dice=%.4f source=%s time=%.1fs run_dir=%s",
@@ -194,13 +213,15 @@ def main() -> int:
     summary = {
         "variant": args.variant,
         "augment": augment_name,
+        "scope": scope,
         "mean_dice": float(dices.mean()),
         "std_dice": float(dices.std(ddof=0)),
         "min_dice": float(dices.min()),
         "max_dice": float(dices.max()),
         "n_folds": int(len(splits)),
         "total_time_sec": float(time.time() - t_start),
-        "phase1_2_reference_mean": 0.6946,
+        "phase1_2_5fold_mean": 0.6946,
+        "phase1_2_single_split_ref": 0.6739,
         "folds": fold_metrics,
     }
     out_path.parent.mkdir(parents=True, exist_ok=True)
