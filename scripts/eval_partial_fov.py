@@ -84,6 +84,7 @@ def _per_class_dice_partial(
 def _detected_classes(
     pred: np.ndarray, gt: np.ndarray, threshold: float = 0.5, n_classes: int = 18
 ) -> list[int]:
+    """GT-present classes the model localized with Dice >= threshold."""
     out: list[int] = []
     for c in range(1, n_classes):
         p = pred == c
@@ -93,6 +94,21 @@ def _detected_classes(
             continue
         d = float(2 * int((p & g).sum()) / denom)
         if d >= threshold:
+            out.append(c)
+    return out
+
+
+def _predicted_classes(
+    pred: np.ndarray, min_pixels: int = 50, n_classes: int = 18
+) -> list[int]:
+    """Vertebra classes the model predicts at all (>= ``min_pixels`` pixels).
+
+    Used to detect hallucination: a class that appears in ``pred`` but not
+    in the GT (after centroid policy) is an invented vertebra.
+    """
+    out: list[int] = []
+    for c in range(1, n_classes):
+        if int((pred == c).sum()) >= min_pixels:
             out.append(c)
     return out
 
@@ -186,6 +202,18 @@ def main() -> int:
                     iou_bin = _binary_iou(pred, gt)
                     d_mc_partial, present = _per_class_dice_partial(pred, gt)
                     detected = _detected_classes(pred, gt)
+                    pred_classes = _predicted_classes(pred)
+                    n_gt = len(present)
+                    n_det = len(detected)
+                    n_pred = len(pred_classes)
+                    # Completeness: of the visible vertebrae, what fraction
+                    # did the model localize at Dice >= 0.5?
+                    completeness = (n_det / n_gt) if n_gt > 0 else float("nan")
+                    # Hallucination: vertebra classes predicted that aren't
+                    # in the GT (centroid policy). Normalized by n_gt so it
+                    # reads as "model invented X% extra vertebrae" per case.
+                    halluc_count = max(0, n_pred - n_gt)
+                    halluc_ratio = (halluc_count / n_gt) if n_gt > 0 else float("nan")
                     rows.append({
                         "fold": fold,
                         "patient_id": patient_id,
@@ -195,8 +223,12 @@ def main() -> int:
                         "binary_dice": d_bin,
                         "binary_iou": iou_bin,
                         "mc_dice_partial": d_mc_partial,
-                        "n_gt_present": len(present),
-                        "n_detected": len(detected),
+                        "n_gt_present": n_gt,
+                        "n_detected": n_det,
+                        "n_pred_classes": n_pred,
+                        "completeness": completeness,
+                        "hallucination_count": halluc_count,
+                        "hallucination_ratio": halluc_ratio,
                     })
 
             if (case_idx + 1) % 5 == 0:
@@ -218,7 +250,11 @@ def main() -> int:
             mean_binary_dice=("binary_dice", "mean"),
             mean_binary_iou=("binary_iou", "mean"),
             mean_mc_dice_partial=("mc_dice_partial", "mean"),
+            mean_n_gt_present=("n_gt_present", "mean"),
             mean_n_detected=("n_detected", "mean"),
+            mean_n_pred_classes=("n_pred_classes", "mean"),
+            mean_completeness=("completeness", "mean"),
+            mean_hallucination_ratio=("hallucination_ratio", "mean"),
         )
         .round(4)
     )
