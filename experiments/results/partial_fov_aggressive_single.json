@@ -1,0 +1,23 @@
+{
+  "variant": "aggressive",
+  "augment": "v4_vcrop_aggressive",
+  "scope": "single",
+  "mean_dice": 0.6493253111839294,
+  "std_dice": 0.0,
+  "min_dice": 0.6493253111839294,
+  "max_dice": 0.6493253111839294,
+  "n_folds": 1,
+  "total_time_sec": 5441.134531497955,
+  "phase1_2_5fold_mean": 0.6946,
+  "phase1_2_single_split_ref": 0.6739,
+  "folds": [
+    {
+      "fold": -1,
+      "split_hash": "c33e6000d1030536",
+      "best_val_dice": 0.6493253111839294,
+      "best_source": "live",
+      "total_time_sec": 5439.671767711639,
+      "run_dir": "ai/models/checkpoints/encoder_unet/20260516_160927_27871edca592dbee"
+    }
+  ]
+}
