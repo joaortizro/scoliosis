@@ -64,6 +64,8 @@ _AUGMENT_REGISTRY: dict[str, Callable | None] = {
     "v2": aug.augment_v2,
     "v3": aug.augment_v3,
     "v4": aug.augment_v4,
+    "v4_vcrop_gentle": aug.augment_v4_vcrop_gentle,
+    "v4_vcrop_aggressive": aug.augment_v4_vcrop_aggressive,
 }
 
 
