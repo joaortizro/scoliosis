@@ -44,6 +44,10 @@ mlflow/mlruns/
 # Local run logs
 /logs/
 
+# Local scratch for one-off workflows (mask correction RGB intermediates,
+# per-case logs). Patient-derived images live here too — never committed.
+/.local/
+
 # Node (frontend)
 front/node_modules/
 front/.next/

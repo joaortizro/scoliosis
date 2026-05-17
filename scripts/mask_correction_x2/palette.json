@@ -1,0 +1,24 @@
+{
+  "_doc": "Jorge's strict 17-color palette for T1..L5. ID 0 = background (black). Any non-palette color in an edited mask fails validation. Hex codes must match exactly — antialiasing or partial opacity edges break it.",
+  "background_id": 0,
+  "background_rgb": [0, 0, 0],
+  "vertebrae": {
+    "1":  {"name": "T1",  "hex": "#F2D10C", "rgb": [242, 209, 12]},
+    "2":  {"name": "T2",  "hex": "#EBF20C", "rgb": [235, 242, 12]},
+    "3":  {"name": "T3",  "hex": "#C4F20C", "rgb": [196, 242, 12]},
+    "4":  {"name": "T4",  "hex": "#9CF20C", "rgb": [156, 242, 12]},
+    "5":  {"name": "T5",  "hex": "#75F20C", "rgb": [117, 242, 12]},
+    "6":  {"name": "T6",  "hex": "#4DF20C", "rgb": [77,  242, 12]},
+    "7":  {"name": "T7",  "hex": "#26F20C", "rgb": [38,  242, 12]},
+    "8":  {"name": "T8",  "hex": "#0CF219", "rgb": [12,  242, 25]},
+    "9":  {"name": "T9",  "hex": "#0CF240", "rgb": [12,  242, 64]},
+    "10": {"name": "T10", "hex": "#0CF268", "rgb": [12,  242, 104]},
+    "11": {"name": "T11", "hex": "#0CF28F", "rgb": [12,  242, 143]},
+    "12": {"name": "T12", "hex": "#0CF2B7", "rgb": [12,  242, 183]},
+    "13": {"name": "L1",  "hex": "#0CF2DE", "rgb": [12,  242, 222]},
+    "14": {"name": "L2",  "hex": "#0CDEF2", "rgb": [12,  222, 242]},
+    "15": {"name": "L3",  "hex": "#0CB7F2", "rgb": [12,  183, 242]},
+    "16": {"name": "L4",  "hex": "#0C8FF2", "rgb": [12,  143, 242]},
+    "17": {"name": "L5",  "hex": "#0C68F2", "rgb": [12,  104, 242]}
+  }
+}
