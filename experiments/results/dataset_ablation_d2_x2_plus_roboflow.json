@@ -1,0 +1,14 @@
+{
+  "variant": "d2",
+  "clean_index": "data/processed/audit_v2_corrected_x2_plus_roboflow/clean_index.csv",
+  "phase1_2_baseline_d0_single_split": 0.6739,
+  "phase1_2_baseline_d0_5fold_mean": 0.6946,
+  "run_dir": "ai/models/checkpoints/encoder_unet/20260517_050245_1b8fe848ffa7b4fb",
+  "best_val_dice": 0.6649528741836548,
+  "best_source": "live",
+  "stopped_epoch": 71,
+  "total_time_sec": 6103.894429445267,
+  "split_hash": "c4dd4380894f7dc0",
+  "split_fold": -1,
+  "cached": false
+}
