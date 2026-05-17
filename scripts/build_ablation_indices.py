@@ -29,6 +29,20 @@ ROBOFLOW_INDEX = REPO_ROOT / "data" / "raw" / "Scoliosis_Dataset_extra_roboflow"
 ID_TO_NAME = {1:"T1",2:"T2",3:"T3",4:"T4",5:"T5",6:"T6",7:"T7",8:"T8",9:"T9",10:"T10",11:"T11",12:"T12",13:"L1",14:"L2",15:"L3",16:"L4",17:"L5"}
 
 
+def to_repo_relative(path: str | Path) -> str:
+    """Strip any /home/<user>/scoliosis/ prefix, return repo-relative POSIX path.
+
+    The trainer's CWD is the repo root, so relative paths Just Work across machines
+    (local /home/ortiz/scoliosis vs EC2 /home/ec2-user/scoliosis).
+    """
+    s = str(path)
+    # Anchor on the 'data/' or 'ai/' or 'scripts/' segment — repo-internal roots
+    for marker in ("/data/", "/ai/", "/scripts/", "/experiments/"):
+        if marker in s:
+            return s[s.index(marker) + 1 :]  # drop the leading slash on marker
+    return s  # already relative or some non-repo path
+
+
 def mask_completeness(mask_path: Path) -> tuple[int, str]:
     """Return (count, comma-separated names) from a mask file."""
     arr = np.array(Image.open(mask_path))
@@ -43,6 +57,13 @@ def build_x2() -> pd.DataFrame:
     base = pd.read_csv(BASELINE_INDEX)
     out = base.copy()
 
+    # First, rewrite all path columns to repo-relative so the file is
+    # portable across machines (local /home/ortiz vs EC2 /home/ec2-user).
+    for col in ("image_path", "binary_mask_path", "multiclass_mask_path",
+                "curve_csv_path", "overlay_path"):
+        if col in out.columns:
+            out[col] = out[col].astype(str).apply(to_repo_relative)
+
     overridden = []
     for mask_file in sorted(X2_MASK_DIR.glob("LabelMulti_*.png")):
         base_name = mask_file.stem  # e.g. LabelMulti_N_23
@@ -56,12 +77,9 @@ def build_x2() -> pd.DataFrame:
             raise RuntimeError(f"Expected exactly 1 row for {base_name}, found {n_match}")
 
         new_count, new_present = mask_completeness(mask_file)
-        out.loc[row_mask, "multiclass_mask_path"] = str(mask_file.resolve())
+        out.loc[row_mask, "multiclass_mask_path"] = to_repo_relative(str(mask_file.resolve()))
         out.loc[row_mask, "target_vertebrae_count"] = new_count
         out.loc[row_mask, "target_vertebrae_present"] = new_present
-        # If now complete, also flip status from 'warn' to 'ok' (unless there
-        # are other soft issues — we conservatively only flip when issues
-        # was empty/NaN).
         if new_count == 17:
             issues_cell = out.loc[row_mask, "issues"].iloc[0]
             if pd.isna(issues_cell) or str(issues_cell).strip() == "":
@@ -86,9 +104,9 @@ def build_x2_plus_roboflow(x2_df: pd.DataFrame) -> pd.DataFrame:
     rb_mapped = pd.DataFrame({
         "patient_id": rb["patient_id"],
         "category": rb["category"],
-        "image_path": rb["image_path"],
+        "image_path": rb["image_path"].astype(str).apply(to_repo_relative),
         "binary_mask_path": "",                      # not provided by roboflow
-        "multiclass_mask_path": rb["multiclass_mask_path"],
+        "multiclass_mask_path": rb["multiclass_mask_path"].astype(str).apply(to_repo_relative),
         "curve_csv_path": "",                        # not provided
         "overlay_path": "",                          # not provided
         "image_h": rb["image_h"],
