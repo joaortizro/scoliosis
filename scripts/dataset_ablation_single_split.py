@@ -168,31 +168,56 @@ def run_variant(variant: str, params_yaml: str, use_cache: bool = True) -> dict[
     return out_dict
 
 
-def post_run_hook(self_stop: bool) -> None:
-    """DVC + git push + optional shutdown (mirrors phase1_2_5fold.py pattern)."""
-    import os
-    if not self_stop:
-        return
-    try:
-        log.info("post-run hook: dvc add+push checkpoints + git push sentinels; self_stop=True")
-        subprocess.run(["dvc", "push"], check=False, timeout=600)
-        subprocess.run(["git", "add", "experiments/results/dataset_ablation_*.json"], check=False)
-        subprocess.run(
-            ["git", "commit", "-m", "dataset ablation: D1 + D2 sentinels"],
-            check=False, timeout=30,
-        )
-        os.environ["GIT_TERMINAL_PROMPT"] = "0"
-        subprocess.run(["git", "push", "origin", "HEAD"], check=False, timeout=120)
-    except Exception as e:
-        log.warning("post-run hook step failed: %s", e)
+def post_run_hook(run_dirs: list[str], self_stop: bool) -> None:
+    """`dvc add` each run_dir → `dvc push` → optional shutdown. NO git push.
 
+    Per ``feedback_save_model_weights.md`` we MUST ``dvc add`` each
+    checkpoint dir before ``dvc push`` so weights actually land in S3.
+    Without ``dvc add`` the trainer leaves weights only on the ephemeral
+    host and a shutdown loses them.
+
+    Git push is INTENTIONALLY skipped — sentinels + dvc pointers are
+    recovered from local via SCP after the box stops (cleaner than
+    fighting HTTPS creds + 120s timeouts on EC2).
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    log.info("post-run hook: dvc add (%d runs) + dvc push; NO git push; self_stop=%s",
+             len(run_dirs), self_stop)
+
+    new_dvc_files: list[str] = []
+    for run_dir in run_dirs:
+        if not run_dir:
+            continue
+        try:
+            subprocess.run(
+                ["dvc", "add", run_dir],
+                cwd=repo_root, check=False, timeout=300,
+            )
+            new_dvc_files.append(f"{run_dir}.dvc")
+            log.info("dvc add %s OK", run_dir)
+        except Exception as exc:
+            log.warning("dvc add %s failed: %s", run_dir, exc)
+
+    try:
+        subprocess.run(
+            ["dvc", "push"] + new_dvc_files,
+            cwd=repo_root, check=False, timeout=1800,
+        )
+        log.info("dvc push complete")
+    except Exception as exc:
+        log.warning("dvc push failed: %s — checkpoints stay on EC2; SCP-pull before shutdown!", exc)
+
+    if not self_stop:
+        log.info("self_stop disabled — leaving box up")
+        return
+
+    log.info("scheduling shutdown -h +2 (gives 2 min for log flush)")
     try:
         subprocess.run(
             ["sudo", "shutdown", "-h", "+2",
              "dataset ablation complete; auto-stop"],
             check=False, timeout=10,
         )
-        log.info("scheduling shutdown -h +2")
     except Exception as exc:
         log.warning("shutdown call failed: %s — box will stay up", exc)
 
@@ -209,9 +234,12 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     variants = ["d1", "d2"] if args.variant == "all" else [args.variant]
+    run_dirs: list[str] = []
     for v in variants:
         result = run_variant(v, params_yaml=args.params, use_cache=not args.no_cache)
         log.info("variant %s result: %s", v, json.dumps(result, indent=2, default=str)[:500])
+        if isinstance(result, dict) and result.get("run_dir"):
+            run_dirs.append(result["run_dir"])
 
     # Comparison summary
     summary = {}
@@ -224,8 +252,9 @@ def main() -> int:
     for v, val in summary.items():
         log.info("%s (%s): %s", v, VARIANT_CLEAN_INDEX[v], val)
 
-    if args.self_stop:
-        post_run_hook(self_stop=True)
+    # Save weights (dvc add + dvc push) and optionally shutdown.
+    # NO git push — sentinels + .dvc pointers will be SCP-pulled from local.
+    post_run_hook(run_dirs=run_dirs, self_stop=args.self_stop)
     return 0
 
 
