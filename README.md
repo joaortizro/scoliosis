@@ -53,7 +53,7 @@ scoliosis/
 │   └── final/             # Thesis-ready, numbered, reproducible
 ├── scripts/               # DVC stage entrypoints (preprocess, train, evaluate)
 ├── server/                # FastAPI backend
-├── front/                 # Frontend app
+├── frontend/              # Frontend app
 ├── deploy/                # EC2 deployment helpers (systemd service)
 ├── docs/
 │   ├── references/        # PDFs, papers (gitignored — share via Drive)
