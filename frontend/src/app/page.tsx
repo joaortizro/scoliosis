@@ -1,146 +1,113 @@
+import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { UploadCard } from "@/components/prediction/UploadCard";
 import { PROJECT_DISCLAIMER } from "@/lib/constants";
 
 const workflowSteps = [
-  {
-    title: "Upload X-ray",
-    description: "Select a frontal spine radiograph image from your device.",
-  },
-  {
-    title: "AI model analyzes",
-    description: "The frontend sends the image to the FastAPI prediction API.",
-  },
-  {
-    title: "Review result",
-    description: "A structured prediction response is displayed for inspection.",
-  },
+  "Upload a spine X-ray",
+  "Model analyzes the image",
+  "Research result is shown",
 ];
 
 export default function Home() {
   return (
     <>
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-20">
+      <section className="bg-white">
+        <div className="mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl gap-10 px-5 py-12 lg:grid-cols-[1.05fr_0.95fr] lg:px-8">
           <div className="flex flex-col justify-center">
             <Badge>Master&apos;s research project</Badge>
-            <h1 className="mt-5 max-w-3xl text-4xl font-semibold text-slate-950 sm:text-5xl">
-              AI-powered scoliosis detection from spine X-rays
+            <h1 className="mt-6 max-w-4xl text-5xl font-semibold leading-[1.02] text-[#102a43] sm:text-6xl lg:text-7xl">
+              Clear AI support for scoliosis research.
             </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              A clean research interface for uploading radiographs, sending
-              them to a deep learning backend, and reviewing prediction output
-              from the scoliosis detection pipeline.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
+              A calm, focused frontend for reviewing spine X-ray predictions
+              from a deep learning scoliosis detection pipeline.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="#prediction"
-                className="inline-flex h-11 items-center justify-center rounded-md bg-cyan-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2"
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link
+                className="inline-flex h-12 items-center justify-center rounded-md bg-[#0a5f9e] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#084f84] focus:outline-none focus:ring-2 focus:ring-[#0a5f9e] focus:ring-offset-2"
+                href="/prediction"
               >
-                Try image prediction
-              </a>
+                Start prediction
+              </Link>
               <a
+                className="inline-flex h-12 items-center justify-center rounded-md border border-[#d9e5ee] bg-white px-6 text-sm font-semibold text-[#102a43] transition hover:bg-[#f4f8fb] focus:outline-none focus:ring-2 focus:ring-[#0a5f9e] focus:ring-offset-2"
                 href="#methodology"
-                className="inline-flex h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-600 focus:ring-offset-2"
               >
-                View methodology
+                Learn more
               </a>
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-900 p-5 text-white shadow-sm">
-            <div className="grid min-h-[360px] gap-3 rounded-md border border-white/10 bg-[radial-gradient(circle_at_50%_18%,rgba(34,211,238,0.2),transparent_32%),linear-gradient(180deg,#0f172a,#111827)] p-5">
-              <div className="flex items-start justify-between text-sm text-slate-300">
-                <span>Research preview</span>
-                <span>FastAPI ready</span>
-              </div>
-              <div className="mx-auto flex h-full w-full max-w-[260px] items-center justify-center">
-                <div className="relative h-[280px] w-28 rounded-full border border-cyan-200/30 bg-white/5">
-                  <div className="absolute left-1/2 top-5 h-[240px] w-3 -translate-x-1/2 rounded-full bg-cyan-100/80 shadow-[0_0_30px_rgba(125,211,252,0.35)]" />
-                  {Array.from({ length: 11 }).map((_, index) => (
+          <div className="flex items-center">
+            <div className="w-full rounded-lg bg-[#102a43] p-5 text-white shadow-sm">
+              <div className="min-h-[440px] rounded-md border border-white/10 bg-[linear-gradient(180deg,#15395a,#102a43)] p-6">
+                <div className="flex items-center justify-between text-sm text-blue-100">
+                  <span>SpineView AI</span>
+                  <span className="rounded-md bg-[#f97316] px-2 py-1 text-xs font-semibold text-white">
+                    Research
+                  </span>
+                </div>
+
+                <div className="mx-auto mt-12 flex h-72 max-w-xs items-center justify-center rounded-full border border-blue-200/20 bg-white/5">
+                  <div className="relative h-64 w-32">
+                    <div className="absolute left-1/2 top-2 h-60 w-3 -translate-x-1/2 rounded-full bg-white/80 shadow-[0_0_36px_rgba(255,255,255,0.35)]" />
+                    {Array.from({ length: 10 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="absolute left-1/2 h-2 w-24 -translate-x-1/2 rounded-full bg-blue-100/80"
+                        style={{
+                          top: `${26 + index * 22}px`,
+                          transform: `translateX(-50%) rotate(${
+                            index % 2 === 0 ? -6 : 6
+                          }deg)`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-10 grid gap-3 sm:grid-cols-3">
+                  {workflowSteps.map((step, index) => (
                     <div
-                      key={index}
-                      className="absolute left-1/2 h-2 w-20 -translate-x-1/2 rounded-full bg-slate-200/70"
-                      style={{
-                        top: `${36 + index * 20}px`,
-                        transform: `translateX(-50%) rotate(${
-                          index % 2 === 0 ? -5 : 5
-                        }deg)`,
-                      }}
-                    />
+                      key={step}
+                      className="rounded-md border border-white/10 bg-white/5 p-3"
+                    >
+                      <p className="text-xs font-semibold text-[#f97316]">
+                        0{index + 1}
+                      </p>
+                      <p className="mt-2 text-sm leading-5 text-blue-50">
+                        {step}
+                      </p>
+                    </div>
                   ))}
                 </div>
               </div>
-              <p className="text-sm leading-6 text-slate-300">
-                {PROJECT_DISCLAIMER}
-              </p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-slate-50">
-        <div className="mx-auto w-full max-w-6xl px-6 py-14 lg:px-8">
-          <div className="grid gap-4 md:grid-cols-3">
-            {workflowSteps.map((step, index) => (
-              <div
-                key={step.title}
-                className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-cyan-50 text-sm font-bold text-cyan-800">
-                  {index + 1}
-                </div>
-                <h2 className="mt-4 text-lg font-semibold text-slate-950">
-                  {step.title}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  {step.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="prediction" className="border-y border-slate-200 bg-white">
-        <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-14 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
+      <section id="methodology" className="border-y border-[#d9e5ee] bg-[#f4f8fb]">
+        <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:px-8">
           <div>
-            <Badge>Prediction</Badge>
-            <h2 className="mt-4 text-3xl font-semibold text-slate-950">
-              Upload an image for analysis
+            <Badge>Methodology</Badge>
+            <h2 className="mt-4 text-3xl font-semibold text-[#102a43]">
+              Simple interface, research-grade pipeline.
             </h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              Choose a radiograph image and submit it to the backend endpoint at
-              <span className="font-medium text-slate-800"> POST /predict/</span>.
-              The result card accepts flexible response fields while the backend
-              contract evolves.
-            </p>
-            <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-              {PROJECT_DISCLAIMER}
-            </p>
           </div>
-          <UploadCard />
-        </div>
-      </section>
-
-      <section id="methodology" className="bg-slate-50">
-        <div className="mx-auto w-full max-w-6xl px-6 py-14 lg:px-8">
-          <div className="max-w-3xl">
-            <Badge>About the system</Badge>
-            <h2 className="mt-4 text-3xl font-semibold text-slate-950">
-              Methodology and project context
-            </h2>
-            <p className="mt-4 leading-7 text-slate-600">
-              This frontend supports a master&apos;s project focused on
-              AI-powered scoliosis detection. The repository contains a
-              reproducible deep learning pipeline, experiment tracking with
-              MLflow, data versioning with DVC, and a FastAPI backend for model
-              inference.
+          <div className="grid gap-5 text-base leading-8 text-slate-600">
+            <p>
+              This master&apos;s project explores AI-powered scoliosis detection
+              using deep learning, reproducible data workflows, experiment
+              tracking, and a FastAPI inference boundary.
             </p>
-            <p className="mt-4 leading-7 text-slate-600">
-              The website stays intentionally small: presentation, upload,
-              preview, API submission, and response display are kept separate
-              from the training and evaluation code.
+            <p>
+              The frontend stays intentionally separate from model training and
+              backend internals. It presents the project, collects an image, and
+              displays prediction output for research review.
+            </p>
+            <p className="rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-900">
+              {PROJECT_DISCLAIMER}
             </p>
           </div>
         </div>
