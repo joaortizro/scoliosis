@@ -52,6 +52,15 @@ mlflow/mlruns/
 front/node_modules/
 front/.next/
 front/dist/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Local AI assistant files
+.agents/
+.codex/
+.scratch/
 
 # Reference PDFs (large binaries — share via Drive/Notion instead)
 docs/references/*.pdf
