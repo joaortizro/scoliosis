@@ -5,6 +5,7 @@ Ensemble: modelo T1-T8 para región superior (42%), completo para región inferi
 """
 
 import io
+import os
 import base64
 import numpy as np
 import cv2
@@ -60,10 +61,15 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model_full: Optional[YOLO] = None
 model_t1t8: Optional[YOLO] = None
 
+# RB-UNet ensemble (D2 5-fold). Loaded lazily on startup if the project's
+# checkpoint sentinel is available. The deploy keeps working without it.
+RBUNET_REPO_ROOT = Path(os.environ.get("SCOLIOSIS_REPO_ROOT", Path(__file__).resolve().parents[2]))
+rbunet_ensemble = None  # type: ignore[var-annotated]
+
 
 @app.on_event("startup")
 async def load_models():
-    global model_full, model_t1t8
+    global model_full, model_t1t8, rbunet_ensemble
     if MODEL_FULL_PATH.exists():
         model_full = YOLO(str(MODEL_FULL_PATH))
         print(f"✅ Modelo completo cargado desde {MODEL_FULL_PATH}")
@@ -75,6 +81,14 @@ async def load_models():
         print(f"✅ Modelo T1-T8 cargado desde {MODEL_T1T8_PATH}")
     else:
         print(f"⚠️  Modelo T1-T8 NO encontrado en {MODEL_T1T8_PATH}")
+
+    try:
+        from rbunet import RBUNetEnsemble, resolve_d2_5fold
+        cfg = resolve_d2_5fold(RBUNET_REPO_ROOT)
+        rbunet_ensemble = RBUNetEnsemble(cfg)
+        print(f"✅ RB-UNet D2 5-fold cargado ({rbunet_ensemble.n_folds} folds) desde {RBUNET_REPO_ROOT}")
+    except Exception as e:
+        print(f"⚠️  RB-UNet NO cargado: {e}")
 
 
 # ─── Esquemas de respuesta ────────────────────────────────────────────────────
@@ -424,9 +438,15 @@ async def root():
 @app.get("/health", tags=["Health"])
 async def health():
     return {
-        "healthy": (model_full is not None or model_t1t8 is not None),
+        "healthy": (
+            model_full is not None
+            or model_t1t8 is not None
+            or rbunet_ensemble is not None
+        ),
         "full_model_loaded": model_full is not None,
         "t1t8_model_loaded": model_t1t8 is not None,
+        "rbunet_loaded": rbunet_ensemble is not None,
+        "rbunet_n_folds": getattr(rbunet_ensemble, "n_folds", 0),
         "device": device,
         "img_size": IMG_SIZE,
         "crop_ratio": CROP_RATIO,
@@ -586,5 +606,72 @@ async def segment_t1t8_only(
         total_detected=len(verts_out),
         image_base64=img_b64,
         model_used="t1t8_only",
+        device=device,
+    )
+
+
+# ─── RB-UNet (semantic-segmentation) endpoint ─────────────────────────────────
+# Decoupled from YOLO entirely. Uses our project's best model: D2 5-fold
+# EncoderUNet (RB-UNet) with hflip TTA, mean-softmax ensemble.
+
+@app.post("/segment/rbunet", response_model=SegmentationResponse, tags=["Segmentation"])
+async def segment_rbunet(
+    file: UploadFile = File(..., description="Radiografía (JPG, PNG)"),
+    return_image: bool = Query(True, description="Incluir PNG segmentado base64"),
+):
+    """RB-UNet D2 5-fold ensemble (proyecto MaIA/IBIO-SD).
+
+    Semantic segmentation 18-class (bg + T1..L5). Para cada clase de
+    primer plano se extrae la componente conexa mayor → un instance dict
+    compatible con el schema YOLO. Confianza = media de la probabilidad
+    softmax sobre los píxeles del blob.
+
+    Difiere de los endpoints `/segment*`: no usa YOLO, ni CLAHE, ni crop
+    T1-T8; el preprocessing es el mismo que el del trainer
+    (`ai.training.dataset.preprocess_case`, `roi_crop="off"`) para
+    mantener paridad train/inference.
+    """
+    if rbunet_ensemble is None:
+        raise HTTPException(status_code=503, detail="RB-UNet ensemble no cargado.")
+
+    raw_bytes = await file.read()
+    if len(raw_bytes) == 0:
+        raise HTTPException(status_code=400, detail="El archivo está vacío.")
+
+    try:
+        from rbunet import bytes_to_input_tensor, probs_to_instances
+        img_display, input_tensor = bytes_to_input_tensor(raw_bytes)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"No se pudo leer la imagen: {e}")
+
+    try:
+        probs = rbunet_ensemble.predict_probs(input_tensor)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Falló la inferencia RB-UNet: {e}")
+
+    vertebrae = probs_to_instances(probs, out_hw=(IMG_SIZE, IMG_SIZE))
+
+    verts_out = [
+        VertebraResult(
+            label=v["label"],
+            confidence=v["confidence"],
+            centroid_x=v["centroid_x"],
+            centroid_y=v["centroid_y"],
+            area_px=v["area_px"],
+            source=v["source"],
+        )
+        for v in vertebrae
+    ]
+
+    img_b64 = ""
+    if return_image:
+        segmented = draw_segmentation(img_display, vertebrae)
+        img_b64 = image_to_base64(segmented)
+
+    return SegmentationResponse(
+        vertebrae=verts_out,
+        total_detected=len(verts_out),
+        image_base64=img_b64,
+        model_used=f"rbunet_d2_{rbunet_ensemble.n_folds}fold",
         device=device,
     )

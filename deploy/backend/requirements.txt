@@ -8,3 +8,9 @@ torchvision>=0.17.0
 opencv-python-headless>=4.9.0
 numpy>=1.26.0
 Pillow>=10.3.0
+# RB-UNet deps (mirror scoliosis-ai pyproject minus torch* already above)
+scipy>=1.11
+pandas>=2.2
+PyYAML>=6.0
+# Install the project's ai/ package in editable mode at image-build time.
+# Dockerfile copies the repo root into /repo and runs `pip install -e /repo`.
