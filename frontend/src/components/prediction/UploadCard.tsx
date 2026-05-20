@@ -26,6 +26,18 @@ export function UploadCard() {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
+
+    if (file && !["image/jpeg", "image/png"].includes(file.type)) {
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setPredictionState({
+        status: "error",
+        data: null,
+        error: "Please upload a JPG or PNG image.",
+      });
+      return;
+    }
+
     setSelectedFile(file);
     setPreviewUrl(file ? URL.createObjectURL(file) : null);
     setPredictionState({ status: "idle", data: null, error: null });
@@ -61,8 +73,8 @@ export function UploadCard() {
   }
 
   return (
-    <div className="grid gap-4">
-      <Card className="p-5">
+    <div className="mx-auto grid w-full max-w-4xl gap-4">
+      <Card className="p-5 sm:p-6">
         <form className="grid gap-5" onSubmit={handleSubmit}>
           <label className="grid gap-2">
             <span className="text-sm font-semibold text-slate-800">
@@ -71,12 +83,12 @@ export function UploadCard() {
             <input
               className="block w-full rounded-md border border-slate-300 bg-white text-sm text-slate-700 file:mr-4 file:border-0 file:bg-slate-100 file:px-4 file:py-3 file:text-sm file:font-semibold file:text-slate-800 hover:file:bg-slate-200"
               type="file"
-              accept="image/*"
+              accept="image/png,image/jpeg"
               onChange={handleFileChange}
             />
           </label>
 
-          <div className="flex min-h-[260px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
+          <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
             {previewUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -93,12 +105,12 @@ export function UploadCard() {
 
           <Button disabled={predictionState.status === "loading"} type="submit">
             {predictionState.status === "loading"
-              ? "Analyzing..."
+              ? "Segmenting..."
               : "Submit image"}
           </Button>
         </form>
       </Card>
-      <PredictionResult state={predictionState} />
+      <PredictionResult originalImageUrl={previewUrl} state={predictionState} />
     </div>
   );
 }

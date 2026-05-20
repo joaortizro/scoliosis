@@ -6,7 +6,6 @@ This frontend is a small Next.js interface for a master's project on AI-powered 
 
 ```bash
 npm install
-cp .env.example .env.local
 npm run dev
 ```
 
@@ -26,20 +25,25 @@ npm run start
 Create `frontend/.env.local`:
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8001
+NEXT_PUBLIC_API_BASE_URL=
+DEMO_USERNAME=
+DEMO_PASSWORD=
 ```
 
-If the variable is omitted, the frontend defaults to `http://localhost:8001`.
+`NEXT_PUBLIC_API_BASE_URL` is required for image submission. Keep concrete
+server URLs and demo credentials in `.env.local`, not in committed source code.
 
 ## Backend Connection
 
 The upload flow posts a `FormData` payload to:
 
 ```text
-POST /predict/
+POST /segment/rbunet?return_image=true
 ```
 
-The helper lives in `src/lib/api.ts` and accepts flexible response fields because the backend prediction schema may evolve during research.
+The helper lives in `src/lib/api.ts` and sends the uploaded image as multipart
+`FormData` using the `file` field. It accepts flexible response fields because
+the backend prediction schema may evolve during research.
 
 ## Folder Structure
 

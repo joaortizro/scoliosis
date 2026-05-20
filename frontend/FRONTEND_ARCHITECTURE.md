@@ -15,7 +15,7 @@ The frontend is a Next.js App Router project using TypeScript, Tailwind CSS, and
 
 ## API Boundary
 
-All backend communication should go through `src/lib/api.ts`. The current upload helper posts `FormData` to `POST /predict/` using `NEXT_PUBLIC_API_BASE_URL`, defaulting to `http://localhost:8001`.
+All backend communication should go through `src/lib/api.ts`. The current upload helper posts multipart `FormData` with a `file` field to `POST /segment/rbunet?return_image=true` using the required `NEXT_PUBLIC_API_BASE_URL` environment variable. Do not hardcode concrete server URLs in source code.
 
 The frontend accepts a flexible prediction response to avoid coupling the UI too tightly to an evolving research API.
 

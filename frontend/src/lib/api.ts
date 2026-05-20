@@ -8,13 +8,19 @@ const apiBaseUrl =
 export async function predictScoliosisImage(
   image: File,
 ): Promise<PredictionResponse> {
+  if (!apiBaseUrl) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_API_BASE_URL. Add it to frontend/.env.local.",
+    );
+  }
+
   const formData = new FormData();
   formData.append("file", image);
 
   let response: Response;
 
   try {
-    response = await fetch(`${apiBaseUrl}/predict/`, {
+    response = await fetch(`${apiBaseUrl}/segment/rbunet?return_image=true`, {
       method: "POST",
       body: formData,
     });
