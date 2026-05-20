@@ -1,15 +1,14 @@
-"""Publication-quality figure of the Scoliosis_208 ID-assignment failure.
+"""Figura S_208 para el paper IEEE — modo de falla de asignación de identificadores.
 
-Designed for inclusion as a single-column or 2-column figure in the IEEE
-conference paper. Renders a 2-row × 4-col grid:
-  Row 1: fold0 (well-trained v2-only, zero-shot)
-  Row 2: D2 (trained on this case — memorization)
+Renderiza una grilla 2 x 4:
+  Fila (a) Phase 1.2 fold-0 (zero-shot sobre S_208, nunca lo vio en entrenamiento)
+  Fila (b) D2 (vio S_208 durante entrenamiento — base de memorización)
 
-Columns: input radiograph, GT segmentation, prediction, foreground diff.
+Columnas: radiografía | GT | predicción | mapa de diferencia binaria.
 
-Output PNG saved to /tmp/scoliosis_viz/s208_paper.png (gitignored per
-patient-data confidentiality rule). User must copy into the paper repo
-manually before figure inclusion.
+Output: docs/figures/s208_paper.png (carpeta gitignored — imágenes con datos
+de paciente no se versionan; render reproducible vía este script + checkpoints
+trazados por DVC).
 """
 from __future__ import annotations
 
@@ -53,17 +52,20 @@ def per_case_metrics(pred: torch.Tensor, target: torch.Tensor) -> tuple[float, f
 
 
 def main() -> None:
+    # IEEE conference single column ≈ 88 mm = 3.46 in. Render a 3.4 in figure
+    # so that \includegraphics[width=\linewidth] uses 1:1 scaling and the in-figure
+    # fonts land at ~7--8 pt on the printed page.
     plt.rcParams.update({
-        "font.size": 11,
-        "axes.titlesize": 11,
-        "axes.labelsize": 11,
+        "font.size": 7,
+        "axes.titlesize": 7,
+        "axes.labelsize": 7,
         "font.family": "serif",
     })
 
     models = [
-        ("(a) Phase 1.2 fold-0 — zero-shot", "v2-only training, never saw this case",
+        ("(a) Zero-shot (IBIO-SD)",
          "ai/models/checkpoints/encoder_unet/20260509_194823_b41714d16d325371"),
-        ("(b) D2 — trained on this case", "memorization baseline, n=18 added to train",
+        ("(b) D2 (IBIO-SD + ERS-18)",
          "ai/models/checkpoints/encoder_unet/20260517_050245_1b8fe848ffa7b4fb"),
     ]
 
@@ -71,11 +73,12 @@ def main() -> None:
     s208 = rows_csv[(rows_csv["category"] == "Scoliosis") & (rows_csv["patient_id"] == 208)].iloc[0]
 
     cmap = vertebra_cmap()
-    fig, axes = plt.subplots(len(models), 4, figsize=(11.5, 5.5))
+    fig, axes = plt.subplots(len(models), 4, figsize=(3.4, 4.6),
+                              gridspec_kw={"wspace": 0.04, "hspace": 0.34})
 
-    col_titles = ["Radiograph", "Ground-truth labels", "Model prediction", "Foreground diff"]
+    col_titles = ["Radiografía", "GT", "Predicción", "Diferencia"]
 
-    for row_idx, (panel_label, panel_desc, run_dir) in enumerate(models):
+    for row_idx, (panel_label, run_dir) in enumerate(models):
         predictor = Predictor(run_dir, device=torch.device("cpu"))
         out = predictor.predict_from_row(s208, tta="off")
         img = out["image"].squeeze().cpu().numpy()
@@ -84,27 +87,17 @@ def main() -> None:
         bin_d, mc_d = per_case_metrics(out["pred"], out["seg"])
 
         ax = axes[row_idx]
-        ax[0].imshow(img, cmap="gray")
-        if row_idx == 0:
-            ax[0].set_title(col_titles[0])
-        ax[0].set_ylabel(f"{panel_label}\n{panel_desc}", fontsize=10, rotation=0,
-                          labelpad=110, ha="right", va="center")
-        ax[0].set_xticks([]); ax[0].set_yticks([])
 
+        for k in range(4):
+            ax[k].set_xticks([]); ax[k].set_yticks([])
+            if row_idx == 0:
+                ax[k].set_title(col_titles[k], fontsize=7, pad=2)
+
+        ax[0].imshow(img, cmap="gray")
         ax[1].imshow(img, cmap="gray")
         ax[1].imshow(gt, cmap=cmap, vmin=0, vmax=17, alpha=0.55)
-        if row_idx == 0:
-            ax[1].set_title(col_titles[1])
-        ax[1].set_xticks([]); ax[1].set_yticks([])
-
         ax[2].imshow(img, cmap="gray")
         ax[2].imshow(pred, cmap=cmap, vmin=0, vmax=17, alpha=0.55)
-        if row_idx == 0:
-            ax[2].set_title(col_titles[2])
-        ax[2].text(0.5, -0.06,
-                    f"binary Dice = {bin_d:.2f}  |  macro mc Dice = {mc_d:.2f}",
-                    transform=ax[2].transAxes, ha="center", fontsize=10)
-        ax[2].set_xticks([]); ax[2].set_yticks([])
 
         diff = np.zeros((*img.shape, 3))
         pred_fg = pred > 0; gt_fg = gt > 0
@@ -113,22 +106,26 @@ def main() -> None:
         diff[gt_fg & ~pred_fg] = [0, 0, 0.9]
         ax[3].imshow(img, cmap="gray")
         ax[3].imshow(diff, alpha=0.5)
-        if row_idx == 0:
-            ax[3].set_title(col_titles[3])
-        ax[3].text(0.5, -0.06,
-                    "green: TP foreground  |  red: FP  |  blue: FN",
-                    transform=ax[3].transAxes, ha="center", fontsize=9)
-        ax[3].set_xticks([]); ax[3].set_yticks([])
 
-    fig.suptitle("Failure-mode analysis: ID-assignment fragility under extreme scoliosis (Scoliosis_208, OOD source)",
-                  fontsize=12, y=1.02)
-    fig.tight_layout(rect=[0.04, 0, 1, 1])
-    out_dir = Path("/tmp/scoliosis_viz")
+        # Banner por fila arriba de la cuadrícula (panel_label + métricas)
+        banner = (
+            rf"{panel_label}   $\bullet$   "
+            rf"Dice$_{{\mathrm{{bin}}}}={bin_d:.2f}$, "
+            rf"Dice$_{{\mathrm{{mc}}}}={mc_d:.2f}$"
+        )
+        bbox0 = ax[0].get_position()
+        bbox3 = ax[3].get_position()
+        y_banner = bbox0.y1 + (0.040 if row_idx == 0 else 0.020)
+        fig.text((bbox0.x0 + bbox3.x1) / 2, y_banner, banner,
+                  ha="center", va="bottom", fontsize=7, weight="bold")
+
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.88, bottom=0.01)
+    out_dir = REPO_ROOT / "docs" / "figures"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "s208_paper.png"
-    fig.savefig(out_path, dpi=200, bbox_inches="tight")
+    fig.savefig(out_path, dpi=300)
     plt.close(fig)
-    print(f"wrote {out_path}")
+    print(f"escrito: {out_path}")
 
 
 if __name__ == "__main__":

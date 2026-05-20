@@ -37,6 +37,8 @@ notebooks/**/*.html
 # Sandbox-generated visualizations (regenerable from scripts + DVC-tracked checkpoints).
 # Patient-derived images are confidential — keep them OUT of git; render to this dir.
 notebooks/sandbox/**/viz_*/
+# Paper figures contain patient-derived overlays — render via scripts/render_paper_*.py.
+docs/figures/
 
 # MLflow
 mlflow/mlruns/
