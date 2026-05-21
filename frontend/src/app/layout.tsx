@@ -4,7 +4,7 @@ import { Header } from "@/components/site/Header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SpineView AI",
+  title: "MIRO",
   description:
     "Research frontend for spine X-ray segmentation and scoliosis support.",
 };
@@ -15,9 +15,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+    <html
+      lang="en"
+      className="h-full antialiased"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body
-        className="flex min-h-full flex-col bg-slate-50 text-slate-950"
+        className="flex min-h-full flex-col bg-white text-[#0d1620]"
         suppressHydrationWarning
       >
         <Header />

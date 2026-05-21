@@ -13,20 +13,24 @@ This document defines the visual direction for the scoliosis frontend. It is ins
 
 | Role | Hex | Usage |
 | --- | --- | --- |
-| White | `#ffffff` | Primary page and navigation surfaces |
-| Off white | `#fbfcfd` | App background |
-| Soft blue surface | `#f4f8fb` | Secondary bands and quiet panels |
-| Line | `#d9e5ee` | Borders and dividers |
-| Primary blue | `#0a5f9e` | Primary actions, links, focus rings |
-| Deep blue | `#102a43` | Logo, hero panels, major headings |
-| Orange accent | `#f97316` | Small status accents and research callouts |
-| Near black | `#111827` | Body text when strong contrast is needed |
+| White | `#ffffff` | Primary page, workspace, and empty structural backgrounds |
+| Warm white | `#f5f4df` | Reserved warm tint; use sparingly, not for large empty gaps |
+| Pale blue | `#f2f8ff` | Soft selected states, controls, and quiet workspace surfaces |
+| Primary blue | `#007ae5` | Primary actions, links, focus rings, general spine fill |
+| Dark blue | `#1c3f9a` | Logo, hero panels, major headings, general spine border |
+| Alternate dark blue | `#073f73` | Deeper UI surfaces and hover states |
+| Orange accent | `#ff5c00` | Small status accents and research callouts |
+| Near black | `#0d1620` | Body text and strong contrast surfaces |
+| Gray | `#c7c6b7` | Borders, dividers, muted controls |
+| Medical teal | `#00d1c1` | Optional supporting accent when a second highlight is needed |
 
-Do not use pure black for large surfaces. Use `#102a43` or `#111827`.
+Do not use pure black for large surfaces. Use `#0d1620`, `#182433`, `#1c3f9a`, or `#073f73`.
+
+For vertebra-level segmentation overlays, use the exported `VERTEBRA_COLORS` map in `src/lib/constants.ts`. Multiclass colors should follow a continuous neon-spectrum progression down the spine, with darker fills and brighter same-family borders. Keep mask and bounding-box strokes thin enough that they do not overpower the radiograph. Unknown labels fall back to the general spine colors: fill `#0078E5`, border `#1C3F98`.
 
 ## Typography
 
-- Use the system UI stack for now: `Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`.
+- Prefer Clarity City if the font file is later added locally. Until then, use Poppins from Google Fonts, then the system UI stack.
 - Large landing headings should be confident and simple.
 - Body copy should stay readable with generous line height.
 - Avoid tight letter spacing except for the centered logo wordmark.

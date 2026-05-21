@@ -40,12 +40,12 @@ export function LoginForm() {
     <Card className="mt-8 p-5 sm:p-6">
       <form className="grid gap-5" onSubmit={handleSubmit}>
         <label className="grid gap-2">
-          <span className="text-sm font-semibold text-slate-800">
+          <span className="text-sm font-semibold text-[#0d1620]">
             Username
           </span>
           <input
             autoComplete="username"
-            className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#0a5f9e] focus:ring-2 focus:ring-[#0a5f9e]/20"
+            className="h-11 rounded-full bg-[#f2f8ff] px-4 text-sm text-[#0d1620] outline-none ring-1 ring-[#c7c6b7]/45 transition focus:bg-white focus:ring-2 focus:ring-[#007ae5]/30"
             onChange={(event) => setUsername(event.target.value)}
             suppressHydrationWarning
             type="text"
@@ -53,12 +53,12 @@ export function LoginForm() {
           />
         </label>
         <label className="grid gap-2">
-          <span className="text-sm font-semibold text-slate-800">
+          <span className="text-sm font-semibold text-[#0d1620]">
             Password
           </span>
           <input
             autoComplete="current-password"
-            className="h-11 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#0a5f9e] focus:ring-2 focus:ring-[#0a5f9e]/20"
+            className="h-11 rounded-full bg-[#f2f8ff] px-4 text-sm text-[#0d1620] outline-none ring-1 ring-[#c7c6b7]/45 transition focus:bg-white focus:ring-2 focus:ring-[#007ae5]/30"
             onChange={(event) => setPassword(event.target.value)}
             suppressHydrationWarning
             type="password"
@@ -66,7 +66,7 @@ export function LoginForm() {
           />
         </label>
         {status === "error" ? (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm leading-6 text-red-800">
+          <p className="rounded-2xl bg-[#fff0ed] px-4 py-3 text-sm leading-6 text-[#9a2600]">
             {error}
           </p>
         ) : null}

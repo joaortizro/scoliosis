@@ -16,21 +16,21 @@ export default async function LoginPage() {
   }
 
   return (
-    <section className="bg-[#fbfcfd]">
+    <section className="bg-white">
       <div className="mx-auto flex min-h-[calc(100vh-144px)] w-full max-w-5xl flex-col items-center justify-center px-5 py-10 lg:px-8">
         <div className="w-full max-w-md">
           <div className="text-center">
             <Badge>Demo access</Badge>
-            <h1 className="mt-5 text-3xl font-semibold leading-tight text-[#102a43] sm:text-4xl">
+            <h1 className="mt-5 text-3xl font-semibold leading-tight text-[#1c3f9a] sm:text-4xl">
               Sign in to use Flash Prediction.
             </h1>
-            <p className="mt-4 text-base leading-7 text-slate-600">
+            <p className="mt-4 text-base leading-7 text-[#182433]/75">
               This demo login protects the research workspace while keeping the
               public project page open.
             </p>
           </div>
           <LoginForm />
-          <p className="mt-5 rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm leading-6 text-orange-900">
+          <p className="mt-5 rounded-2xl bg-[#fff4ed] p-4 text-sm leading-6 text-[#9a3500]">
             {PROJECT_DISCLAIMER}
           </p>
         </div>
