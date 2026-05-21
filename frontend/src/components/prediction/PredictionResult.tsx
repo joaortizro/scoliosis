@@ -2,133 +2,40 @@
 
 import { useState } from "react";
 import type { PointerEvent } from "react";
-import { GENERAL_SPINE_COLORS, getVertebraColors } from "@/lib/constants";
-import type {
-  PredictionResponse,
-  PredictionResultsByModel,
-  PredictionSegment,
-} from "@/types/prediction";
-
-type LayerKey = "binary" | "multiclass";
+import {
+  formatConfidenceDecimal,
+  getOverlayLayers,
+  getImageSize,
+  getPolygonPoints,
+  getSegmentColors,
+  getSegmentKey,
+  getSegmentLabel,
+} from "@/lib/prediction-results";
+import type { PredictionResultsByModel } from "@/types/prediction";
 
 type PredictionResultProps = {
   imageUrl: string | null;
+  hiddenSegments?: Record<string, boolean>;
+  isLoading?: boolean;
   predictions?: PredictionResultsByModel;
   showBoundingBoxes: boolean;
-  visibleLayers: Record<LayerKey, boolean>;
+  showBoxConfidence: boolean;
+  showBoxLabels: boolean;
+  visibleLayers: Record<"binary" | "multiclass", boolean>;
   zoom: number;
   onPanChange: (pan: { x: number; y: number }) => void;
   pan: { x: number; y: number };
 };
 
-type OverlayLayer = {
-  key: LayerKey;
-  label: string;
-  response: PredictionResponse;
-  segments: PredictionSegment[];
-};
-
-function getLayerLabel(key: LayerKey) {
-  return key === "binary" ? "Binary mask" : "Vertebra labels";
-}
-
-function getSegmentLabel(segment: PredictionSegment) {
-  return segment.label ?? `Class ${segment.class_id ?? segment.id ?? "?"}`;
-}
-
-function getSegmentColors(segment: PredictionSegment, layerKey: LayerKey) {
-  if (layerKey === "binary") {
-    return GENERAL_SPINE_COLORS;
-  }
-
-  return getVertebraColors(getSegmentLabel(segment));
-}
-
-function getSegmentsForLayer(
-  response: PredictionResponse,
-  layerKey: LayerKey,
-): PredictionSegment[] {
-  const modelResult = response.results?.[layerKey];
-
-  if (Array.isArray(modelResult?.segments)) {
-    return modelResult.segments;
-  }
-
-  if (layerKey === "binary" && response.results) {
-    const binaryLike = Object.values(response.results).find(
-      (result) => result.type === "binary" && Array.isArray(result.segments),
-    );
-
-    return binaryLike?.segments ?? [];
-  }
-
-  if (layerKey === "multiclass" && response.results) {
-    const multiclassLike = Object.values(response.results).find(
-      (result) =>
-        result.type === "multiclass" && Array.isArray(result.segments),
-    );
-
-    return multiclassLike?.segments ?? [];
-  }
-
-  return [];
-}
-
-function getOverlayLayers(
-  predictions: PredictionResultsByModel = {},
-  visibleLayers: Record<LayerKey, boolean>,
-): OverlayLayer[] {
-  const fullResponse = predictions.full;
-  const sources: { key: LayerKey; response?: PredictionResponse }[] = fullResponse
-    ? [
-        { key: "multiclass", response: fullResponse },
-        { key: "binary", response: fullResponse },
-      ]
-    : [
-        { key: "multiclass", response: predictions.multiclass },
-        { key: "binary", response: predictions.binary },
-      ];
-
-  return sources.flatMap(({ key, response }) => {
-    if (!response || !visibleLayers[key]) {
-      return [];
-    }
-
-    const segments = getSegmentsForLayer(response, key);
-
-    if (!segments.length) {
-      return [];
-    }
-
-    return [
-      {
-        key,
-        label: getLayerLabel(key),
-        response,
-        segments,
-      },
-    ];
-  });
-}
-
-function getImageSize(predictions: PredictionResultsByModel = {}) {
-  const response = predictions.full ?? predictions.multiclass ?? predictions.binary;
-
-  if (!response?.image_width || !response.image_height) {
-    return null;
-  }
-
-  return {
-    height: response.image_height,
-    width: response.image_width,
-  };
-}
-
 export function PredictionResult({
+  hiddenSegments = {},
   imageUrl,
+  isLoading = false,
   onPanChange,
   pan,
   predictions = {},
+  showBoxConfidence,
+  showBoxLabels,
   showBoundingBoxes,
   visibleLayers,
   zoom,
@@ -222,15 +129,28 @@ export function PredictionResult({
           >
             {overlayLayers.map((layer) =>
               layer.segments.map((segment, index) => {
+                const segmentKey = getSegmentKey(layer.key, segment, index);
+
+                if (hiddenSegments[segmentKey]) {
+                  return null;
+                }
+
                 const colors = getSegmentColors(segment, layer.key);
-                const polygonPoints = segment.polygon
-                  ?.map((point) => point.join(","))
+                const polygonPoints = getPolygonPoints(segment)
+                  .map((point) => point.join(","))
                   .join(" ");
                 const bbox = segment.bbox;
                 const showBox = layer.key === "multiclass" && showBoundingBoxes;
+                const confidence = formatConfidenceDecimal(segment);
+                const boxLabel = [
+                  showBoxLabels ? getSegmentLabel(segment) : null,
+                  showBoxConfidence ? confidence : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
 
                 return (
-                  <g key={`${layer.key}-${getSegmentLabel(segment)}-${index}`}>
+                  <g key={segmentKey}>
                     {polygonPoints ? (
                       <polygon
                         fill={colors.fill}
@@ -246,14 +166,13 @@ export function PredictionResult({
                         fill="none"
                         height={Math.max(0, bbox[3] - bbox[1])}
                         stroke={colors.border}
-                        strokeDasharray="8 6"
                         strokeWidth="2.5"
                         width={Math.max(0, bbox[2] - bbox[0])}
                         x={bbox[0]}
                         y={bbox[1]}
                       />
                     ) : null}
-                    {showBox && bbox && bbox.length === 4 ? (
+                    {showBox && boxLabel && bbox && bbox.length === 4 ? (
                       <text
                         fill="white"
                         fontSize="22"
@@ -264,7 +183,7 @@ export function PredictionResult({
                         x={bbox[0]}
                         y={Math.max(24, bbox[1] - 8)}
                       >
-                        {getSegmentLabel(segment)}
+                        {boxLabel}
                       </text>
                     ) : null}
                   </g>
@@ -272,6 +191,21 @@ export function PredictionResult({
               }),
             )}
           </svg>
+        ) : null}
+        {isLoading ? (
+          <div className="absolute inset-0 grid place-items-center rounded-2xl bg-[#0d1620]/35 px-6 text-center text-white backdrop-blur-[1px]">
+            <div className="rounded-2xl bg-[#0d1620]/80 px-5 py-4 shadow-lg shadow-[#073f73]/20">
+              <div className="mx-auto mb-3 flex w-16 justify-between">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-white [animation-delay:0ms]" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-white [animation-delay:160ms]" />
+                <span className="h-2 w-2 animate-pulse rounded-full bg-white [animation-delay:320ms]" />
+              </div>
+              <p className="text-sm font-semibold">Analyzing image</p>
+              <p className="mt-1 text-xs leading-5 text-white/80">
+                This may take a few seconds. Please wait.
+              </p>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>

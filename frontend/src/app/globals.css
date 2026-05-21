@@ -39,3 +39,7 @@ input {
 html {
   scroll-behavior: smooth;
 }
+
+body:has(.prediction-workspace) > footer {
+  display: none;
+}

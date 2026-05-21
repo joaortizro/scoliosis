@@ -45,6 +45,26 @@ export const VERTEBRA_COLORS = {
   L5: { fill: "#9C1E48", border: "#FF5F96" },
 } as const;
 
+export const EXPORT_VERTEBRA_COLORS = {
+  T1: "#F2D10C",
+  T2: "#EBF20C",
+  T3: "#C4F20C",
+  T4: "#9CF20C",
+  T5: "#75F20C",
+  T6: "#4DF20C",
+  T7: "#26F20C",
+  T8: "#0CF219",
+  T9: "#0CF240",
+  T10: "#0CF268",
+  T11: "#0CF28F",
+  T12: "#0CF2B7",
+  L1: "#0CF2DE",
+  L2: "#0CDEF2",
+  L3: "#0CB7F2",
+  L4: "#0C8FF2",
+  L5: "#0C68F2",
+} as const;
+
 export type VertebraLabel = keyof typeof VERTEBRA_COLORS;
 
 export function getVertebraColors(label: string | undefined) {
@@ -57,4 +77,16 @@ export function getVertebraColors(label: string | undefined) {
   }
 
   return GENERAL_SPINE_COLORS;
+}
+
+export function getExportVertebraColor(label: string | undefined) {
+  const normalizedLabel = label?.trim().toUpperCase() as
+    | VertebraLabel
+    | undefined;
+
+  if (normalizedLabel && normalizedLabel in EXPORT_VERTEBRA_COLORS) {
+    return EXPORT_VERTEBRA_COLORS[normalizedLabel];
+  }
+
+  return GENERAL_SPINE_COLORS.fill;
 }
