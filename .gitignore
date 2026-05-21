@@ -19,6 +19,7 @@ build/
 /ai/models/checkpoints/**
 !/ai/models/checkpoints/**/
 !/ai/models/checkpoints/**/*.dvc
+/deploy/deeplab_api/models/*.pth
 /experiments/results/**
 !/experiments/results/**/
 !/experiments/results/*.json

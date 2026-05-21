@@ -52,9 +52,19 @@ scoliosis/
 │   ├── experiments/       # Shared ideas by topic (needs Conclusions cell)
 │   └── final/             # Thesis-ready, numbered, reproducible
 ├── scripts/               # DVC stage entrypoints (preprocess, train, evaluate)
-├── server/                # FastAPI backend
+├── server/                # Original FastAPI backend
 ├── frontend/              # Frontend app
-├── deploy/                # EC2 deployment helpers (systemd service)
+├── deploy/
+│   ├── backend/           # Existing backend deployment files; keep separate
+│   └── deeplab_api/       # New FastAPI DeepLabV3+ backend for Hugging Face Spaces
+│       ├── app/
+│       │   └── main.py
+│       ├── models/        # Local/deployment-only .pth checkpoints
+│       │   └── .gitkeep
+│       ├── Dockerfile
+│       ├── requirements.txt
+│       ├── README.md
+│       └── .gitignore
 ├── docs/
 │   ├── references/        # PDFs, papers (gitignored — share via Drive)
 │   ├── diagrams/
@@ -153,6 +163,43 @@ docker compose up server
 | POST | `/predict/` | Upload image, get prediction |
 
 Docs at [http://localhost:8001/docs](http://localhost:8001/docs)
+
+## DeepLab API Backend
+
+The newer DeepLabV3+ inference service lives in `deploy/deeplab_api/`. It is
+kept separate from the existing backend under `deploy/backend/`.
+
+Expected layout:
+
+```text
+deploy/
+  backend/                 existing backend, do not touch for DeepLab changes
+  deeplab_api/             new backend
+    app/
+      main.py
+    models/
+      .gitkeep
+      best_model_binary.pth
+      best_model_multi.pth
+    Dockerfile
+    requirements.txt
+    README.md
+    .gitignore
+```
+
+The `.pth` model files must be present at runtime in `deploy/deeplab_api/models/`.
+They are large binary artifacts and should not be committed to Git. Add them
+locally, through the hosting provider file storage/build context, or through the
+deployment process before starting the API.
+
+The current DeepLab API exposes:
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/health` | Health check and model-loaded status |
+| POST | `/predict-binary` | Binary segmentation |
+| POST | `/predict-multiclass` | T1-L5 multiclass segmentation |
+| POST | `/predict-full` | Combined binary + multiclass response |
 
 ---
 
