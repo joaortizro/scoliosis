@@ -1,160 +1,314 @@
-# Scoliosis Detection — Master's Degree Project
+# Detección de Escoliosis con IA
 
-AI-powered scoliosis detection system using deep learning, with full experiment tracking and reproducible pipelines.
+> **Título académico (artículo / tesis):** *Segmentación multiclase de columna y vértebras T1–L5 en radiografías de escoliosis con robustez a campo de visión parcial.*
+
+Sistema de detección de escoliosis basado en *deep learning* sobre radiografías de columna. Incluye:
+
+- Pipeline reproducible de preprocesamiento, entrenamiento y evaluación (DVC).
+- Backend FastAPI que expone el modelo entrenado como API REST.
+- Frontend Next.js para que un usuario final cargue una radiografía y obtenga: máscara segmentada por vértebra (T1–L5), ángulo Cobb estimado y clasificación de severidad (*normal / mild / moderate / severe*).
+- Backend secundario DeepLab para comparación de arquitecturas.
 
 ---
 
-## Status
+## Integrantes
 
-- **Current best val Dice (canonical 80/20):** 0.643 — `model_primer_v3_corrected.ipynb`, EncoderUNet(resnet34) + augment_v4 + seg_loss_fn (CE+Dice).
-- **Phase 0 stack landed (Dice 0.643 → 0.80+ plan):** trainer in `ai/training/trainer.py`, EMA, real CLAHE, flip-TTA via `ai.Predictor`, optional SDHL boundary loss, `tests/test_no_leakage.py` enforcing patient-grouped + severity-stratified splits with a frozen `data/processed/audit_v2_corrected/test_holdout.csv` slice.
-- **Next gate (Phase 0):** `python scripts/train.py` reproduces 0.643 ± 0.01 (fidelity), then EMA + real CLAHE + boundary-λ ablation drive val Dice ≥ 0.71.
-- **Test slice is sealed:** the 25-case `test_holdout.csv` is touched only by `scripts/eval_test.py` after all gates pass — never by `scripts/train.py` or `scripts/evaluate.py`.
+- Beto Javi
+- Fedys Moreno
+- Jonathan Ortiz
+- Jorge Oñate
+- Milton Rentería
+
+**Curso:** Maestría en Inteligencia Artificial (MaIA).
+
+---
+
+## Enlaces
+
+| Recurso | Enlace |
+|---|---|
+| Repositorio GitHub | https://github.com/joaortizro/scoliosis |
+| Aplicación desplegada | _TBD — se completará antes de la entrega_ |
+| Artículo académico (LaTeX) | `docs/thesis/scoliosis.tex` |
+
+---
+
+## Mapeo a la rúbrica (carpetas obligatorias)
+
+La rúbrica pide tres carpetas (`Notebooks/`, `Modelos/`, `Datos/`). En este repositorio mantenemos los nombres reales usados durante el desarrollo, con esta correspondencia explícita:
+
+| Rúbrica | Ruta real en el repo | Contenido |
+|---|---|---|
+| `Notebooks/` | [`notebooks/`](./notebooks/) | Cuadernos de análisis, entrenamiento y evaluación (tres niveles: `sandbox/`, `experiments/`, `final/`). |
+| `Modelos/` | [`ai/models/releases/`](./ai/models/releases/) | Pesos del modelo final (`.pt`) versionados con DVC. Pointer `.dvc` en Git, pesos en el remoto. Ver `phase1_chain_2026-05-08_ec2_t4_v2_corrected/`. |
+| `Datos/` | [`data/`](./data/) | Estructura del dataset MaIA Scoliosis v2 (250 radiografías) más índices CSV y subset auditado. Las imágenes son confidenciales — solo pointers `.dvc` viven en Git; los píxeles se obtienen vía `dvc pull`. |
+
+> **Nota:** las imágenes radiográficas son material clínico anonimizado. Por acuerdo institucional con el Grupo de Ingeniería Biomédica de la Universidad de los Andes, **no se publican en Git**. Se distribuyen vía DVC a un remoto S3 con acceso controlado. La estructura, los índices y las máscaras de etiquetado están documentados en [`data/raw/Scoliosis_Dataset_v2/`](./data/raw/) y en [`CLAUDE.md`](./.claude/CLAUDE.md).
 
 ---
 
 ## Stack
 
-| Layer | Technology |
+| Capa | Tecnología |
 |---|---|
-| ML framework | PyTorch |
-| Experiment tracking | MLflow |
-| Pipeline / data versioning | DVC |
-| API server | FastAPI + Uvicorn |
-| Packaging | setuptools wheel (`.whl`) |
-| Dev environments | tox |
-| Containerization | Docker + Docker Compose |
-| Container registry | AWS ECR |
-| Deployment | AWS ECS Fargate / EC2 + systemd |
+| ML | PyTorch · segmentation-models-pytorch |
+| Tracking | DVC + JSON metrics (`experiments/results/*.json`) |
+| Backend | FastAPI + Uvicorn |
+| Backend secundario | FastAPI (DeepLab) |
+| Frontend | Next.js 15 + React + Tailwind |
+| Empaquetado | wheel `scoliosis-ai` |
+| Entornos | tox |
+| Contenedores | Docker + Docker Compose |
+| Registro de imágenes | AWS ECR |
+| Despliegue | AWS ECS Fargate / EC2 + systemd |
 | CI | GitHub Actions |
 
 ---
 
-## Project Structure
+## Arquitectura
 
 ```
-scoliosis/
-├── .github/workflows/     # CI: run tests + build wheel on every push
-├── data/                  # DVC-tracked datasets (not in Git)
-│   ├── raw/
-│   ├── processed/
-│   └── interim/
-├── ai/                    # Core ML logic — packaged as scoliosis-ai wheel
-│   ├── preprocessing/
-│   ├── models/
-│   ├── training/
-│   ├── evaluation/
-│   └── inference/
-├── experiments/           # DVC configs and result metrics
-├── mlflow/                # MLflow server setup
-├── notebooks/             # Three-tier: sandbox → experiments → final
-│   ├── sandbox/           # Personal scratchpads (no rules)
-│   ├── experiments/       # Shared ideas by topic (needs Conclusions cell)
-│   └── final/             # Thesis-ready, numbered, reproducible
-├── scripts/               # DVC stage entrypoints (preprocess, train, evaluate)
-├── server/                # Original FastAPI backend
-├── frontend/              # Frontend app
-├── deploy/
-│   ├── backend/           # Existing backend deployment files; keep separate
-│   └── deeplab_api/       # New FastAPI DeepLabV3+ backend for Hugging Face Spaces
-│       ├── app/
-│       │   └── main.py
-│       ├── models/        # Local/deployment-only .pth checkpoints
-│       │   └── .gitkeep
-│       ├── Dockerfile
-│       ├── requirements.txt
-│       ├── README.md
-│       └── .gitignore
-├── docs/
-│   ├── references/        # PDFs, papers (gitignored — share via Drive)
-│   ├── diagrams/
-│   └── thesis/
-├── dist/                  # Built wheels (gitignored)
-├── tests/
-├── params.yaml            # Hyperparameters — single source of truth
-├── dvc.yaml               # Pipeline DAG (preprocess → train → evaluate)
-├── pyproject.toml         # Package definition for ai/ wheel
-├── tox.ini                # Unified environments: test_package, train, run
-├── VERSION                # Semantic version — bump here only
-├── run.sh                 # Container entrypoint (reads $PORT from env)
-└── Makefile               # Shortcuts: train, build, test, deploy-ecs, deploy-ec2
+┌─────────────────┐    HTTPS     ┌─────────────────┐
+│  Frontend Web   │ ───────────▶ │ FastAPI Backend │
+│  (Next.js)      │              │ (server/)       │
+└─────────────────┘              └────────┬────────┘
+                                          │
+                                          ▼
+                                 ┌─────────────────┐
+                                 │  ai/ (PyTorch)  │
+                                 │  EncoderUNet    │
+                                 │  ResNet34 + CE  │
+                                 │  + Dice + SDHL  │
+                                 └─────────────────┘
 ```
+
+El servidor sigue **Arquitectura Hexagonal** (puertos y adaptadores). El paquete `ai/` es una librería ML pura, importada solo desde adaptadores de infraestructura. Adicionalmente, un backend secundario DeepLabV3+ vive en `deploy/deeplab_api/` para experimentos de comparación de arquitecturas (ver sección [DeepLab API Backend](#deeplab-api-backend)).
 
 ---
 
-## Setup
+## Requisitos del entorno
 
-### 1. Clone and install
+| Componente | Versión mínima |
+|---|---|
+| Python | 3.11 |
+| Node.js | 20 LTS |
+| Docker | 24.x |
+| DVC | 3.x |
+| GPU | Opcional (CPU funciona; CUDA/ROCm acelera entrenamiento) |
+| RAM | 8 GB (16 GB recomendado) |
+| Disco | 5 GB para imágenes Docker + dataset |
+
+---
+
+## Instalación y ejecución local
+
+### 1. Clonar y preparar Python
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/joaortizro/scoliosis.git
 cd scoliosis
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Initialize DVC
+### 2. Variables de entorno
+
+Copiar la plantilla y editar valores:
 
 ```bash
-dvc init
-dvc remote add -d myremote <your-storage-url>   # s3://, gdrive://, ssh://
-dvc pull                                         # fetch data and checkpoints
+cp .env.example .env
 ```
 
-### 3. Configure environment
+Variables principales (`.env`):
+
+```dotenv
+# Backend
+MODEL_CHECKPOINTS_DIR=ai/models/checkpoints
+MODEL_RELEASE=phase1_chain_2026-05-08_ec2_t4_v2_corrected
+PORT=8001
+
+# Auth (frontend)
+AUTH_USER=demo
+AUTH_PASSWORD=demo123        # TBD — credenciales reales se entregan aparte
+
+# Frontend
+NEXT_PUBLIC_API_URL=http://localhost:8001
+```
+
+### 3. Descargar dataset y modelos (DVC)
 
 ```bash
-cp .env .env.local
-# edit .env.local with your values
+dvc pull        # baja data/raw/ y ai/models/releases/ desde el remoto S3
+```
+
+### 4. Levantar backend
+
+```bash
+tox -e run                       # uvicorn server.main:app --reload --port 8001
+# o vía Docker:
+docker compose up server
+```
+
+Documentación interactiva: <http://localhost:8001/docs>
+
+### 5. Levantar frontend
+
+```bash
+cd frontend
+npm install
+npm run dev                      # http://localhost:3000
 ```
 
 ---
 
-## Running the Pipeline
+## Credenciales de ejemplo
+
+> _Las credenciales reales de la app desplegada se entregan junto con el documento PDF de la entrega. Las que aparecen abajo sirven solo para ejecutar la app localmente._
+
+| Campo | Valor demo |
+|---|---|
+| Usuario | _TBD_ |
+| Contraseña | _TBD_ |
+
+(Sustituir antes de entrega una vez confirmadas las credenciales.)
+
+---
+
+## Ejemplos de uso
+
+### Vía interfaz web
+
+1. Abrir <http://localhost:3000> (o la URL desplegada).
+2. Autenticarse con las credenciales demo.
+3. Subir una radiografía AP/PA de columna (JPG/PNG).
+4. La interfaz muestra:
+   - Imagen original.
+   - *Overlay* con segmentación por vértebra (T1–L5).
+   - Ángulo Cobb estimado en grados.
+   - Clasificación de severidad: `normal` (<10°), `mild` (10–25°), `moderate` (25–40°), `severe` (>40°).
+   - *Score* de confianza.
+
+### Vía API REST (cURL)
 
 ```bash
-make pipeline              # preprocess → train → evaluate (via dvc repro)
-make preprocess            # single stage
+# Health check
+curl http://localhost:8001/health
+
+# Predicción
+curl -X POST http://localhost:8001/predict/ \
+  -F "file=@data/raw/Scoliosis_Dataset_v2/Scoliosis/S_001.jpg" \
+  | jq
+```
+
+Respuesta esperada (resumida):
+
+```json
+{
+  "diagnosis_id": "a1b2c3d4",
+  "cobb_angle_deg": 27.4,
+  "severity": "moderate",
+  "vertebrae_detected": 17,
+  "mask_url": "/static/masks/a1b2c3d4.png",
+  "inference_ms": 312
+}
+```
+
+### Vía CLI de Python (inferencia directa)
+
+```python
+from ai import Predictor
+
+p = Predictor.from_release("phase1_chain_2026-05-08_ec2_t4_v2_corrected")
+result = p.predict("data/raw/Scoliosis_Dataset_v2/Scoliosis/S_001.jpg")
+print(result.cobb_angle_deg, result.severity)
+```
+
+---
+
+## Parametrización
+
+Toda la configuración se centraliza en dos lugares:
+
+### 1. `params.yaml` — Hiperparámetros del modelo
+
+Fuente única de verdad para entrenamiento y evaluación. Editar aquí para reentrenar:
+
+```yaml
+train:
+  encoder_name: resnet34
+  batch_size: 4
+  epochs: 100
+  lr_enc: 1.0e-4
+  lr_dec: 1.0e-3
+  augment: v4
+  ema:
+    enabled: true
+    decay: 0.999
+  loss:
+    boundary_lambda: 0.10
+```
+
+### 2. `.env` — Configuración de runtime
+
+Variables que cambian entre entornos (local / staging / producción). Documentadas en `.env.example`.
+
+### 3. `Makefile` — Variables de despliegue
+
+```bash
+make deploy-ecs AWS_ACCOUNT=123456789012 AWS_REGION=us-east-1
+```
+
+Variables soportadas: `EC2_HOST`, `PEM`, `AWS_ACCOUNT`, `AWS_REGION`, `ECR_REPO`, `ECS_CLUSTER`, `ECS_SERVICE`.
+
+---
+
+## Pipeline reproducible (DVC)
+
+```bash
+make pipeline      # preprocess → train → evaluate
+make preprocess
 make train
 make evaluate
 ```
 
-Compare runs:
+Comparar corridas:
 
 ```bash
 dvc params diff
 dvc metrics diff
 ```
 
+Las métricas finales se guardan en `experiments/results/*.json` y son diffeables en Git.
+
 ---
 
-## Tests
+## Pruebas
 
 ```bash
-make test                  # tox -e test_package
-tox -e test_api            # API-specific tests
+make test                  # tests de paquete
+tox -e test_api            # tests de API
+pytest tests/ -v           # todos
 ```
 
----
-
-## Experiment Tracking (MLflow)
-
-```bash
-make mlflow-ui
-# or:
-docker compose up mlflow
-```
-
-Open [http://localhost:5000](http://localhost:5000)
+Incluye:
+- Tests unitarios de dominio.
+- Tests de adaptadores REST con `TestClient`.
+- *Fitness function* arquitectónico que valida que el dominio no importe FastAPI / SQLAlchemy / PyTorch.
+- Test de no-fuga (`tests/test_no_leakage.py`) que congela el slice de test (25 casos) con agrupación por paciente y estratificación por severidad.
 
 ---
 
-## API Server
+## Despliegue
+
+### Opción A — EC2 + systemd
 
 ```bash
-tox -e run                 # local dev with reload
-# or:
-docker compose up server
+# Primera vez en EC2:
+scp -i ~/.ssh/key.pem -r server/ deploy/ .env ec2-user@<ip>:~/scoliosis/
+ssh -i ~/.ssh/key.pem ec2-user@<ip> "bash ~/scoliosis/deploy/ec2_setup.sh"
+
+# Subsecuentes:
+make deploy EC2_HOST=ec2-user@<ip> PEM=~/.ssh/key.pem
 ```
 
 | Method | Route | Description |
@@ -224,68 +378,93 @@ Topics under `experiments/`: `preprocessing/`, `augmentation/`, `architectures/`
 Bump `VERSION` before any release — the wheel name and Docker image tag are derived from it:
 
 ```bash
-echo "0.2.0" > VERSION
-```
-
----
-
-## Deploy
-
-Two paths depending on the stage of the project:
-
-```
-Local                    S3 / ECR                     EC2 / ECS
-─────                    ────────                     ─────────
-make pipeline ──dvc──▶  checkpoint              ──dvc pull──▶ model on server
-make build    ──scp──▶  (EC2 path)              ──pip install *.whl
-              ──ecr──▶  Docker image (ECS path) ──ecs update-service
-```
-
-### Option A — EC2 + systemd (simple, early-stage)
-
-```bash
-# First time on EC2 (run once):
-scp -i ~/.ssh/your-key.pem -r server/ deploy/ .env ec2-user@<ip>:~/scoliosis/
-ssh -i ~/.ssh/your-key.pem ec2-user@<ip> "bash ~/scoliosis/deploy/ec2_setup.sh"
-
-# Subsequent deploys:
-make deploy EC2_HOST=ec2-user@<ip> PEM=~/.ssh/your-key.pem
-```
-
-### Option B — ECS Fargate + ECR (production, zero-downtime)
-
-```bash
-# Full deploy: push checkpoint + build image + push to ECR + redeploy service
 make deploy-ecs AWS_ACCOUNT=<id> AWS_REGION=us-east-1
-
-# Or step by step:
-make push-data            # dvc push → S3
-make docker-push          # build image → push to ECR
-make ecs-deploy           # aws ecs update-service (rolling update)
 ```
 
-### Makefile variables
+### Opción C — Frontend en Vercel
 
-| Variable | Default | Description |
-| --- | --- | --- |
-| `EC2_HOST` | `ec2-user@<ip>` | EC2 SSH target |
-| `PEM` | `~/.ssh/your-key.pem` | SSH key path |
-| `AWS_ACCOUNT` | `<your-aws-account-id>` | AWS account number |
-| `AWS_REGION` | `us-east-1` | AWS region |
-| `ECR_REPO` | `scoliosis-api` | ECR repository name |
-| `ECS_CLUSTER` | `scoliosis-cluster` | ECS cluster name |
-| `ECS_SERVICE` | `scoliosis-service` | ECS service name |
+```bash
+cd frontend
+vercel --prod
+```
+
+Configurar `NEXT_PUBLIC_API_URL` apuntando al backend desplegado.
 
 ---
 
-## What lives where
+## Estado del modelo
 
-| Artifact | Versioned by | Location |
-| --- | --- | --- |
-| Source code | Git | GitHub / GitLab |
-| Datasets | DVC | S3 / GDrive / SSH |
-| Model checkpoints | DVC | S3 / GDrive / SSH |
-| `ai/` inference logic | Wheel (`.whl`) | `dist/` → EC2 or baked into Docker image |
-| Docker image | ECR | `<account>.dkr.ecr.<region>.amazonaws.com/scoliosis-api` |
-| Experiment metadata | MLflow | `mlflow/mlruns/` |
-| Version | `VERSION` file | Read by `pyproject.toml` and `Makefile` |
+| Métrica | Valor | Notas |
+|---|---|---|
+| Mejor val Dice (80/20 canónico) | **0.643** | `model_primer_v3_corrected` — EncoderUNet(resnet34) + augment_v4 |
+| Headline con ROI crop (D1) | **0.674** | `phase1_2_d1_roi_resnet34_dice_0.674_HEADLINE` |
+| MAE Cobb (pipeline GT) | ~10.4° | piso teórico del pipeline con máscaras GT |
+| Vértebras objetivo | 17 (T1–L5) | sin cervicales |
+| Casos entrenables | 152 | 82 escoliosis + 70 normales |
+
+---
+
+## Estructura del repositorio
+
+```
+scoliosis/
+├── ai/                    # Librería ML (paquete scoliosis-ai)
+│   ├── preprocessing/
+│   ├── models/
+│   │   ├── architectures/
+│   │   ├── checkpoints/   # pesos en curso (gitignored, DVC)
+│   │   └── releases/      # ←→ rúbrica: "Modelos/"
+│   ├── training/
+│   ├── evaluation/
+│   └── inference/
+├── server/                # Backend FastAPI (hexagonal)
+│   ├── domain/
+│   ├── application/
+│   ├── infrastructure/
+│   └── main.py
+├── frontend/              # Next.js 15
+├── notebooks/             # ←→ rúbrica: "Notebooks/"
+│   ├── sandbox/
+│   ├── experiments/
+│   └── final/
+├── data/                  # ←→ rúbrica: "Datos/"
+│   ├── raw/               # dataset original (DVC)
+│   └── processed/         # auditoría + splits
+├── scripts/               # entrypoints DVC
+├── experiments/results/   # métricas JSON diffeables
+├── deploy/                # systemd + scripts EC2/ECS
+├── docs/
+│   └── thesis/scoliosis.tex
+├── tests/
+├── params.yaml            # hiperparámetros (fuente única)
+├── dvc.yaml               # DAG del pipeline
+├── pyproject.toml
+├── docker-compose.yml
+├── Makefile
+└── VERSION
+```
+
+---
+
+## Convenciones del proyecto
+
+- **Versionado**: editar solo `VERSION`; `pyproject.toml` y `Makefile` lo leen.
+- **Hiperparámetros**: editar solo `params.yaml`.
+- **Datos y checkpoints**: vía DVC (`dvc add`, `dvc repro`, `dvc push`).
+- **Python ≥ 3.11**, type hints estrictos (`mypy --strict`), linting con `ruff`.
+- **Tres niveles de notebook**: `sandbox/` (libre) → `experiments/` (requiere conclusión) → `final/` (tesis-ready).
+
+---
+
+## Licencia y consideraciones éticas
+
+- Uso académico únicamente.
+- Radiografías anonimizadas bajo acuerdo institucional con la Universidad de los Andes.
+- No se publican imágenes pixel-a-pixel en Git; solo pointers DVC con acceso controlado.
+- El sistema es una herramienta de apoyo diagnóstico — **no sustituye el criterio médico profesional**.
+
+---
+
+## Contacto
+
+Para preguntas o acceso a credenciales / DVC remote, contactar a cualquiera de los integrantes.
