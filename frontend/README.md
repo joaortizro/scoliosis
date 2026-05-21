@@ -46,24 +46,51 @@ the protected prediction workspace is shown.
 
 ## Backend Connection
 
-The browser upload flow posts a `FormData` payload to the same-origin Next.js
-API route:
+All browser-side prediction calls go through same-origin Next.js API routes.
+The helper lives in `src/lib/api.ts` and sends the uploaded image as multipart
+`FormData` using the `file` field.
+
+### Current DeepLab API
+
+The main prediction workspace posts to:
 
 ```text
-POST /api/segment-rbunet
+POST /api/model-predict?model=full|multiclass|binary
 ```
 
-That route forwards the file to the backend:
+That route reads `BACKEND_API_BASE_URL` and forwards to the deployed DeepLab
+backend:
+
+```text
+POST /predict-full
+POST /predict-multiclass
+POST /predict-binary
+```
+
+If the backend is a private Hugging Face Space, set `BACKEND_API_AUTH_TOKEN`
+server-side so the proxy can add bearer authentication without exposing the
+token to the browser.
+
+### Legacy RBUNet Preview
+
+The separate original-model preview action posts to:
+
+```text
+POST /api/legacy-segment-rbunet
+```
+
+That route reads `LEGACY_BACKEND_API_BASE_URL` and forwards to:
 
 ```text
 POST /segment/rbunet?return_image=true
 ```
 
-The helper lives in `src/lib/api.ts` and sends the uploaded image as multipart
-`FormData` using the `file` field. The proxy route avoids browser mixed-content
-blocking when the frontend is hosted over HTTPS and the temporary backend is
-still HTTP. It accepts flexible response fields because the backend prediction
-schema may evolve during research.
+The legacy response is expected to include a base64 result image, usually under
+`image_base64` or `data.image_base64`, which the frontend displays in a modal.
+
+The older same-origin route `POST /api/segment-rbunet` still exists for RBUNet
+compatibility, but the active workspace uses the DeepLab route for the main
+prediction flow and the legacy route only for the extra preview.
 
 ## Demo Access
 
