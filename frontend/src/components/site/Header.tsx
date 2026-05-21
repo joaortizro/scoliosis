@@ -11,6 +11,7 @@ const menuItems = [
 export function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,13 +42,13 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#d9e5ee] bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-30 border-b border-[#c7c6b7]/45 bg-white/95 backdrop-blur">
       <div className="relative mx-auto grid h-16 w-full max-w-7xl grid-cols-3 items-center px-5 lg:px-8">
         <div className="flex justify-start">
           <button
             aria-expanded={isOpen}
             aria-label="Open navigation menu"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-[#d9e5ee] text-[#102a43] transition hover:bg-[#f4f8fb] focus:outline-none focus:ring-2 focus:ring-[#0a5f9e] focus:ring-offset-2"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[#f2f8ff] text-[#1c3f9a] transition hover:bg-[#dcedff] focus:outline-none focus:ring-2 focus:ring-[#007ae5]/30 focus:ring-offset-2"
             type="button"
             onClick={() => setIsOpen((value) => !value)}
           >
@@ -61,17 +62,32 @@ export function Header() {
 
         <div className="flex justify-center">
           <Link
-            className="text-sm font-bold uppercase tracking-[0.18em] text-[#102a43]"
+            className="inline-flex items-center justify-center"
             href="/"
           >
-            SpineView AI
+            {logoFailed ? (
+              <span className="text-sm font-bold uppercase tracking-[0.18em] text-[#1c3f9a]">
+                MIRO
+              </span>
+            ) : (
+              <>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt="MIRO"
+                  className="h-10 w-auto"
+                  onError={() => setLogoFailed(true)}
+                  src="/logo/miro_logo.svg"
+                />
+                <span className="sr-only">MIRO</span>
+              </>
+            )}
           </Link>
         </div>
 
         <div className="flex justify-end">
           {isAuthenticated ? (
             <button
-              className="inline-flex h-10 items-center justify-center rounded-md bg-[#102a43] px-4 text-sm font-semibold text-white transition hover:bg-[#0a5f9e] focus:outline-none focus:ring-2 focus:ring-[#0a5f9e] focus:ring-offset-2"
+              className="inline-flex h-10 items-center justify-center rounded-full bg-[#1c3f9a] px-5 text-sm font-semibold text-white transition hover:bg-[#007ae5] focus:outline-none focus:ring-2 focus:ring-[#007ae5]/30 focus:ring-offset-2"
               onClick={handleLogout}
               type="button"
             >
@@ -79,7 +95,7 @@ export function Header() {
             </button>
           ) : (
             <Link
-              className="inline-flex h-10 items-center justify-center rounded-md bg-[#102a43] px-4 text-sm font-semibold text-white transition hover:bg-[#0a5f9e] focus:outline-none focus:ring-2 focus:ring-[#0a5f9e] focus:ring-offset-2"
+              className="inline-flex h-10 items-center justify-center rounded-full bg-[#1c3f9a] px-5 text-sm font-semibold text-white transition hover:bg-[#007ae5] focus:outline-none focus:ring-2 focus:ring-[#007ae5]/30 focus:ring-offset-2"
               href="/login"
             >
               Login
@@ -89,12 +105,12 @@ export function Header() {
       </div>
 
       {isOpen ? (
-        <div className="border-t border-[#d9e5ee] bg-white">
+        <div className="border-t border-[#c7c6b7]/45 bg-white">
           <nav className="mx-auto grid w-full max-w-7xl gap-1 px-5 py-4 lg:px-8">
             {menuItems.map((item) => (
               <Link
                 key={item.href}
-                className="rounded-md px-3 py-2 text-sm font-semibold text-[#102a43] transition hover:bg-[#f4f8fb] hover:text-[#0a5f9e]"
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-[#1c3f9a] transition hover:bg-[#f2f8ff] hover:text-[#007ae5]"
                 href={item.href}
                 onClick={() => setIsOpen(false)}
               >
@@ -103,7 +119,7 @@ export function Header() {
             ))}
             {isAuthenticated ? (
               <button
-                className="rounded-md px-3 py-2 text-left text-sm font-semibold text-[#102a43] transition hover:bg-[#f4f8fb] hover:text-[#0a5f9e]"
+                className="rounded-xl px-3 py-2 text-left text-sm font-semibold text-[#1c3f9a] transition hover:bg-[#f2f8ff] hover:text-[#007ae5]"
                 onClick={handleLogout}
                 type="button"
               >
@@ -111,7 +127,7 @@ export function Header() {
               </button>
             ) : (
               <Link
-                className="rounded-md px-3 py-2 text-sm font-semibold text-[#102a43] transition hover:bg-[#f4f8fb] hover:text-[#0a5f9e]"
+                className="rounded-xl px-3 py-2 text-sm font-semibold text-[#1c3f9a] transition hover:bg-[#f2f8ff] hover:text-[#007ae5]"
                 href="/login"
                 onClick={() => setIsOpen(false)}
               >

@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
 
+function getBackendHeaders() {
+  const token =
+    process.env.BACKEND_API_AUTH_TOKEN ??
+    process.env.HUGGINGFACE_API_TOKEN ??
+    process.env.HF_TOKEN;
+
+  return token ? { Authorization: `Bearer ${token}` } : undefined;
+}
+
 export async function POST(request: Request) {
   const apiBaseUrl = process.env.BACKEND_API_BASE_URL?.replace(/\/$/, "");
 
@@ -15,6 +24,7 @@ export async function POST(request: Request) {
     `${apiBaseUrl}/segment/rbunet?return_image=true`,
     {
       body: formData,
+      headers: getBackendHeaders(),
       method: "POST",
     },
   ).catch(() => null);

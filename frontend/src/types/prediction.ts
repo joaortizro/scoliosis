@@ -1,3 +1,24 @@
+export type PredictionModelKey = "binary" | "multiclass" | "full";
+
+export type PredictionSegment = {
+  id?: number;
+  class_id?: number;
+  label?: string;
+  bbox?: [number, number, number, number] | number[];
+  area?: number;
+  area_px?: number;
+  polygon?: [number, number][] | number[][];
+  confidence?: number;
+  [key: string]: unknown;
+};
+
+export type ModelPredictionResult = {
+  type?: string;
+  classes_detected?: string[];
+  segments?: PredictionSegment[];
+  [key: string]: unknown;
+};
+
 export type VertebraPrediction = {
   label?: string;
   confidence?: number;
@@ -9,6 +30,9 @@ export type VertebraPrediction = {
 };
 
 export type PredictionResponse = {
+  image_width?: number;
+  image_height?: number;
+  results?: Record<string, ModelPredictionResult>;
   data?: {
     vertebrae?: VertebraPrediction[];
     image_base64?: string;
@@ -30,3 +54,7 @@ export type PredictionState =
   | { status: "loading"; data: null; error: null }
   | { status: "success"; data: PredictionResponse; error: null }
   | { status: "error"; data: null; error: string };
+
+export type PredictionResultsByModel = Partial<
+  Record<PredictionModelKey, PredictionResponse>
+>;
