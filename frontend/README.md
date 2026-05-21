@@ -25,25 +25,43 @@ npm run start
 Create `frontend/.env.local`:
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=
+BACKEND_API_BASE_URL=
 DEMO_USERNAME=
 DEMO_PASSWORD=
 ```
 
-`NEXT_PUBLIC_API_BASE_URL` is required for image submission. Keep concrete
-server URLs and demo credentials in `.env.local`, not in committed source code.
+`BACKEND_API_BASE_URL` is required for image submission. Keep concrete server
+URLs and demo credentials in `.env.local`, not in committed source code.
+The demo username and password are checked by the local Next.js API route before
+the protected prediction workspace is shown.
 
 ## Backend Connection
 
-The upload flow posts a `FormData` payload to:
+The browser upload flow posts a `FormData` payload to the same-origin Next.js
+API route:
+
+```text
+POST /api/segment-rbunet
+```
+
+That route forwards the file to the backend:
 
 ```text
 POST /segment/rbunet?return_image=true
 ```
 
 The helper lives in `src/lib/api.ts` and sends the uploaded image as multipart
-`FormData` using the `file` field. It accepts flexible response fields because
-the backend prediction schema may evolve during research.
+`FormData` using the `file` field. The proxy route avoids browser mixed-content
+blocking when the frontend is hosted over HTTPS and the temporary backend is
+still HTTP. It accepts flexible response fields because the backend prediction
+schema may evolve during research.
+
+## Demo Access
+
+`/prediction` is protected by a lightweight demo session. Unauthenticated users
+are redirected to `/login`. The login route posts to `POST /api/demo-login`,
+which compares the submitted values with `DEMO_USERNAME` and `DEMO_PASSWORD` and
+sets an HTTP-only demo cookie. `POST /api/demo-logout` clears that cookie.
 
 ## Folder Structure
 

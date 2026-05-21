@@ -15,9 +15,13 @@ The frontend is a Next.js App Router project using TypeScript, Tailwind CSS, and
 
 ## API Boundary
 
-All backend communication should go through `src/lib/api.ts`. The current upload helper posts multipart `FormData` with a `file` field to `POST /segment/rbunet?return_image=true` using the required `NEXT_PUBLIC_API_BASE_URL` environment variable. Do not hardcode concrete server URLs in source code.
+All browser-side backend communication should go through `src/lib/api.ts`. The current upload helper posts multipart `FormData` with a `file` field to the same-origin `POST /api/segment-rbunet` route. That Next.js API route forwards to `POST /segment/rbunet?return_image=true` using the server-only `BACKEND_API_BASE_URL` environment variable. Do not hardcode concrete server URLs in source code.
 
 The frontend accepts a flexible prediction response to avoid coupling the UI too tightly to an evolving research API.
+
+## Demo Auth
+
+`/prediction` is protected by the Next.js proxy file that checks the `spineview_demo_session` cookie. `/login` submits demo credentials to `POST /api/demo-login`, where `DEMO_USERNAME` and `DEMO_PASSWORD` are read server-side from the local environment. The logout action calls `POST /api/demo-logout` and returns the user to `/login`.
 
 ## Styling Approach
 

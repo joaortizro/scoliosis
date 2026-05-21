@@ -1,26 +1,15 @@
-import { DEFAULT_API_BASE_URL } from "@/lib/constants";
 import type { PredictionResponse } from "@/types/prediction";
-
-const apiBaseUrl =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-  DEFAULT_API_BASE_URL;
 
 export async function predictScoliosisImage(
   image: File,
 ): Promise<PredictionResponse> {
-  if (!apiBaseUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_API_BASE_URL. Add it to frontend/.env.local.",
-    );
-  }
-
   const formData = new FormData();
   formData.append("file", image);
 
   let response: Response;
 
   try {
-    response = await fetch(`${apiBaseUrl}/segment/rbunet?return_image=true`, {
+    response = await fetch("/api/segment-rbunet", {
       method: "POST",
       body: formData,
     });
