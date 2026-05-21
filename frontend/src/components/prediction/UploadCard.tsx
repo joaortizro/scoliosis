@@ -9,7 +9,11 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { PREDICTION_MODEL_OPTIONS, predictScoliosisImage } from "@/lib/api";
+import {
+  PREDICTION_MODEL_OPTIONS,
+  predictScoliosisImage,
+  previewLegacySegmentation,
+} from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { PredictionResult } from "@/components/prediction/PredictionResult";
 import { getExportVertebraColor, PROJECT_DISCLAIMER } from "@/lib/constants";
@@ -43,6 +47,12 @@ type RequestState =
   | { status: "idle"; error: null }
   | { status: "loading"; error: null }
   | { status: "error"; error: string };
+
+type LegacyPreviewState =
+  | { status: "idle"; error: null; imageUrl: null }
+  | { status: "loading"; error: null; imageUrl: null }
+  | { status: "success"; error: null; imageUrl: string }
+  | { status: "error"; error: string; imageUrl: null };
 
 type PanelTab = "setup" | "results";
 type DownloadKind = "color-mask" | "binary-selection" | "overlay";
@@ -84,6 +94,34 @@ function getDownloadBaseName(file: File | null) {
     .replace(/[^a-z0-9-_]+/gi, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
+}
+
+function getLegacyPreviewImageUrl(response: unknown) {
+  if (!response || typeof response !== "object") {
+    return null;
+  }
+
+  const payload = response as {
+    data?: { image_base64?: unknown; image?: unknown; result_image?: unknown };
+    image_base64?: unknown;
+    image?: unknown;
+    result_image?: unknown;
+  };
+  const imageValue =
+    payload.image_base64 ??
+    payload.result_image ??
+    payload.image ??
+    payload.data?.image_base64 ??
+    payload.data?.result_image ??
+    payload.data?.image;
+
+  if (typeof imageValue !== "string" || !imageValue.trim()) {
+    return null;
+  }
+
+  return imageValue.startsWith("data:image/")
+    ? imageValue
+    : `data:image/png;base64,${imageValue}`;
 }
 
 function loadImageElement(src: string) {
@@ -324,6 +362,11 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
     status: "idle",
     error: null,
   });
+  const [legacyPreview, setLegacyPreview] = useState<LegacyPreviewState>({
+    status: "idle",
+    error: null,
+    imageUrl: null,
+  });
 
   const hasFullPrediction = Boolean(predictions.full);
   const hasBinaryPrediction = Boolean(predictions.binary);
@@ -402,6 +445,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
     setPan({ x: 0, y: 0 });
     setZoom(1);
     setRequestState({ status: "idle", error: null });
+    setLegacyPreview({ status: "idle", error: null, imageUrl: null });
   }
 
   function loadFile(file: File | null) {
@@ -437,6 +481,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
     setPan({ x: 0, y: 0 });
     setZoom(1);
     setRequestState({ status: "idle", error: null });
+    setLegacyPreview({ status: "idle", error: null, imageUrl: null });
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -568,6 +613,39 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
           error instanceof Error
             ? error.message
             : "Unexpected prediction error.",
+      });
+    }
+  }
+
+  async function handleLegacyPreview() {
+    if (!selectedFile) {
+      setLegacyPreview({
+        status: "error",
+        error: "Select an image before previewing the original model.",
+        imageUrl: null,
+      });
+      return;
+    }
+
+    setLegacyPreview({ status: "loading", error: null, imageUrl: null });
+
+    try {
+      const response = await previewLegacySegmentation(selectedFile);
+      const imageUrl = getLegacyPreviewImageUrl(response);
+
+      if (!imageUrl) {
+        throw new Error("The original model did not return an image preview.");
+      }
+
+      setLegacyPreview({ status: "success", error: null, imageUrl });
+    } catch (error) {
+      setLegacyPreview({
+        status: "error",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Original model preview failed.",
+        imageUrl: null,
       });
     }
   }
@@ -893,6 +971,37 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
                     ))}
                   </div>
                 </fieldset>
+
+                <section className="grid min-w-0 gap-2 rounded-2xl bg-[#fbfaf0] p-3 ring-1 ring-[#c7c6b7]/35">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h2 className="text-sm font-semibold text-[#0d1620]">
+                        Other model
+                      </h2>
+                      <p className="mt-1 text-xs leading-5 text-[#182433]/65">
+                        Preview the older RBUNet output image separately.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#1c3f9a]">
+                      Extra
+                    </span>
+                  </div>
+                  <button
+                    className="h-10 rounded-full bg-[#f2f8ff] px-4 text-sm font-semibold text-[#1c3f9a] transition hover:bg-[#dcedff] disabled:cursor-not-allowed disabled:text-[#182433]/45"
+                    disabled={!selectedFile || legacyPreview.status === "loading"}
+                    onClick={() => void handleLegacyPreview()}
+                    type="button"
+                  >
+                    {legacyPreview.status === "loading"
+                      ? "Loading preview..."
+                      : "Preview original model"}
+                  </button>
+                  {legacyPreview.status === "error" ? (
+                    <p className="rounded-xl bg-[#fff0ed] px-3 py-2 text-xs leading-5 text-[#9a2600]">
+                      {legacyPreview.error}
+                    </p>
+                  ) : null}
+                </section>
               </>
             ) : (
               <>
@@ -1121,6 +1230,40 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
           </button>
         </div>
       </aside>
+      ) : null}
+      {legacyPreview.status === "success" ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-[#0d1620]/55 p-5 backdrop-blur-sm">
+          <div className="grid max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-2xl shadow-[#073f73]/25">
+            <div className="flex items-center justify-between gap-3 border-b border-[#c7c6b7]/40 px-5 py-4">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-[#1c3f9a]">
+                  Other model preview
+                </h2>
+                <p className="mt-1 truncate text-xs text-[#182433]/60">
+                  {selectedFile?.name ?? "Selected image"}
+                </p>
+              </div>
+              <button
+                aria-label="Close original model preview"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#f2f8ff] text-lg font-semibold text-[#1c3f9a] transition hover:bg-[#dcedff]"
+                onClick={() =>
+                  setLegacyPreview({ status: "idle", error: null, imageUrl: null })
+                }
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <div className="grid min-h-0 place-items-center overflow-auto bg-[#f2f8ff] p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt="Original model segmentation preview"
+                className="max-h-[72vh] w-auto max-w-full rounded-2xl bg-white object-contain shadow-sm shadow-[#073f73]/10"
+                src={legacyPreview.imageUrl}
+              />
+            </div>
+          </div>
+        </div>
       ) : null}
     </form>
   );

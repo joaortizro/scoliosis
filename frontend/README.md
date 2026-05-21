@@ -28,6 +28,7 @@ Create `frontend/.env.local`:
 BACKEND_API_BASE_URL=
 NEXT_PUBLIC_BACKEND_API_BASE_URL=
 BACKEND_API_AUTH_TOKEN=
+LEGACY_BACKEND_API_BASE_URL=
 DEMO_USERNAME=
 DEMO_PASSWORD=
 ```
@@ -38,6 +39,8 @@ URLs and demo credentials in `.env.local`, not in committed source code.
 deployments. `BACKEND_API_AUTH_TOKEN` is optional and is only used server-side
 by the Next.js API proxy when a backend such as a private Hugging Face Space
 requires bearer authentication.
+`LEGACY_BACKEND_API_BASE_URL` is optional and powers the separate original
+RBUNet preview action without changing the main prediction backend.
 The demo username and password are checked by the local Next.js API route before
 the protected prediction workspace is shown.
 

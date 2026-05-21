@@ -103,3 +103,44 @@ export async function predictScoliosisImage(
 
   return payload as PredictionResponse;
 }
+
+export async function previewLegacySegmentation(
+  image: File,
+): Promise<PredictionResponse> {
+  let response: Response;
+
+  try {
+    const formData = new FormData();
+    formData.append("file", image);
+
+    response = await fetch("/api/legacy-segment-rbunet", {
+      method: "POST",
+      body: formData,
+    });
+  } catch {
+    throw new Error("Unable to reach the legacy segmentation API.");
+  }
+
+  let payload: unknown = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+
+  if (!response.ok) {
+    const detail =
+      payload && typeof payload === "object" && "detail" in payload
+        ? String(payload.detail)
+        : "Legacy segmentation request failed.";
+
+    throw new Error(detail);
+  }
+
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Legacy segmentation completed without image data.");
+  }
+
+  return payload as PredictionResponse;
+}
