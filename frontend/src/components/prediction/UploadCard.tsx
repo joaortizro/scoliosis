@@ -621,7 +621,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
     if (!selectedFile) {
       setLegacyPreview({
         status: "error",
-        error: "Select an image before previewing the original model.",
+        error: "Select an image before previewing the RBunet model.",
         imageUrl: null,
       });
       return;
@@ -634,7 +634,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
       const imageUrl = getLegacyPreviewImageUrl(response);
 
       if (!imageUrl) {
-        throw new Error("The original model did not return an image preview.");
+        throw new Error("The RBunet model did not return an image preview.");
       }
 
       setLegacyPreview({ status: "success", error: null, imageUrl });
@@ -644,7 +644,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
         error:
           error instanceof Error
             ? error.message
-            : "Original model preview failed.",
+            : "RBunet model preview failed.",
         imageUrl: null,
       });
     }
@@ -976,7 +976,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h2 className="text-sm font-semibold text-[#0d1620]">
-                        Other model
+                        RBunet model
                       </h2>
                       <p className="mt-1 text-xs leading-5 text-[#182433]/65">
                         Preview the older RBUNet output image separately.
@@ -994,7 +994,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
                   >
                     {legacyPreview.status === "loading"
                       ? "Loading preview..."
-                      : "Preview original model"}
+                      : "Preview RBunet model"}
                   </button>
                   {legacyPreview.status === "error" ? (
                     <p className="rounded-xl bg-[#fff0ed] px-3 py-2 text-xs leading-5 text-[#9a2600]">
@@ -1237,14 +1237,14 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
             <div className="flex items-center justify-between gap-3 border-b border-[#c7c6b7]/40 px-5 py-4">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-[#1c3f9a]">
-                  Other model preview
+                  RBunet model preview
                 </h2>
                 <p className="mt-1 truncate text-xs text-[#182433]/60">
                   {selectedFile?.name ?? "Selected image"}
                 </p>
               </div>
               <button
-                aria-label="Close original model preview"
+                aria-label="Close RBunet model preview"
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#f2f8ff] text-lg font-semibold text-[#1c3f9a] transition hover:bg-[#dcedff]"
                 onClick={() =>
                   setLegacyPreview({ status: "idle", error: null, imageUrl: null })
@@ -1257,7 +1257,7 @@ export function UploadCard({ sampleImages = [] }: UploadCardProps) {
             <div className="grid min-h-0 place-items-center overflow-auto bg-[#f2f8ff] p-4">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                alt="Original model segmentation preview"
+                alt="RBunet model segmentation preview"
                 className="max-h-[72vh] w-auto max-w-full rounded-2xl bg-white object-contain shadow-sm shadow-[#073f73]/10"
                 src={legacyPreview.imageUrl}
               />
