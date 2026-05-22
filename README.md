@@ -28,8 +28,10 @@ Sistema de detección de escoliosis basado en *deep learning* sobre radiografía
 | Recurso | Enlace |
 |---|---|
 | Repositorio GitHub | https://github.com/joaortizro/scoliosis |
-| Aplicación desplegada | _TBD — se completará antes de la entrega_ |
+| **Aplicación desplegada** | **<https://miro.lat/>** |
 | Artículo académico (LaTeX) | `docs/thesis/scoliosis.tex` |
+
+**Credenciales demo:** usuario `admin` · contraseña `demo123`
 
 ---
 
@@ -51,7 +53,7 @@ La rúbrica pide tres carpetas (`Notebooks/`, `Modelos/`, `Datos/`). En este rep
 
 Si solo tienes 5 minutos para revisar el proyecto, esta es la ruta sugerida:
 
-1. **App desplegada** → abrir la URL de la sección [Enlaces](#enlaces), autenticarse con las credenciales demo y subir cualquier radiografía AP de columna. La UI muestra segmentación + Cobb + severidad.
+1. **App desplegada** → abrir <https://miro.lat/>, autenticarse con `admin` / `demo123` y subir cualquier radiografía AP de columna. La UI muestra segmentación + Cobb + severidad.
 2. **Modelo final** → [`ai/models/releases/phase1_chain_2026-05-08_ec2_t4_v2_corrected/README.md`](./ai/models/releases/) — tabla con 7 checkpoints, métricas, cfg, entorno EC2.
 3. **Notebook de entrenamiento canónico** → [`notebooks/sandbox/model_primer_v3_corrected.ipynb`](./notebooks/sandbox/model_primer_v3_corrected.ipynb) — pipeline reproducible del modelo headline (val Dice 0.643).
 4. **Notebook de exploración del dataset** → [`notebooks/sandbox/data_exploration_v2_corrected.ipynb`](./notebooks/sandbox/data_exploration_v2_corrected.ipynb) — EDA + auditoría.
@@ -143,8 +145,8 @@ MODEL_RELEASE=phase1_chain_2026-05-08_ec2_t4_v2_corrected
 PORT=8001
 
 # Auth (frontend)
-AUTH_USER=demo
-AUTH_PASSWORD=demo123        # TBD — credenciales reales se entregan aparte
+AUTH_USER=admin
+AUTH_PASSWORD=demo123
 
 # Frontend
 NEXT_PUBLIC_API_URL=http://localhost:8001
@@ -178,14 +180,14 @@ npm run dev                      # http://localhost:3000
 
 ## Credenciales de ejemplo
 
-> _Las credenciales reales de la app desplegada se entregan junto con el documento PDF de la entrega. Las que aparecen abajo sirven solo para ejecutar la app localmente._
+Para acceder a la aplicación desplegada en <https://miro.lat/>:
 
 | Campo | Valor demo |
 |---|---|
-| Usuario | _TBD_ |
-| Contraseña | _TBD_ |
+| Usuario | `admin` |
+| Contraseña | `demo123` |
 
-(Sustituir antes de entrega una vez confirmadas las credenciales.)
+> Estas mismas credenciales sirven para ejecutar la app localmente (ver `.env.example`).
 
 ---
 
@@ -193,7 +195,7 @@ npm run dev                      # http://localhost:3000
 
 ### Vía interfaz web
 
-1. Abrir <http://localhost:3000> (o la URL desplegada).
+1. Abrir <https://miro.lat/> (o <http://localhost:3000> en local).
 2. Autenticarse con las credenciales demo.
 3. Subir una radiografía AP/PA de columna (JPG/PNG).
 4. La interfaz muestra:
