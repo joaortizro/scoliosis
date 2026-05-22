@@ -1,0 +1,678 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+% ============================================================
+% Paquetes
+% ============================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\graphicspath{{scoliosis/docs/figures/}}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{balance}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+% ============================================================
+% Título y autores
+% ============================================================
+\title{Segmentación multiclase de columna y vértebras T1--L5 en radiografías de escoliosis con robustez a campo de visión parcial}
+
+\author{\IEEEauthorblockN{Beto Javi, Fedys Moreno, Jonathan Ortiz, Jorge Oñate, Milton Rentería}
+\IEEEauthorblockA{\textit{Maestría en Inteligencia Artificial (MaIA)},
+\textit{Universidad de los Andes}, Bogotá, Colombia \\
+\{b.castillov, f.morenov, ja.ortizr1, j.onateh, m.renteriaf\}@uniandes.edu.co}
+}
+
+\maketitle
+
+\begin{abstract}
+La evaluación radiológica de la escoliosis es manual y presenta variabilidad inter-observador de $3$--$5^{\circ}$ SD~\cite{cobb_interrater}, lo que motiva la automatización por aprendizaje profundo~\cite{meta_cobb}. Proponemos un sistema de segmentación multiclase de columna y vértebras T1--L5 sobre radiografías anteroposteriores, robusto a campo de visión parcial. Trabajamos con 249 casos del IBIO Scoliosis Dataset (IBIO-SD; 25 reservados como test) y 18 radiografías reanotadas del conjunto público \emph{Roboflow Universe scoliosis2} (ERS-18)~\cite{ers18_protocol}. El modelo propuesto, \emph{ROI-BoundaryUNet} (RB-UNet), es una U-Net con \emph{backbone} ResNet-34, pérdida \emph{boundary-aware} y recorte por región de interés. Sobre el conjunto reservado, la variante D2 (entrenada sobre IBIO-SD $\cup$ ERS-18) alcanza Dice multiclase macro $\mathbf{0{,}653 \pm 0{,}017}$ y Dice binario $\mathbf{0{,}887 \pm 0{,}003}$ ---una mejora absoluta de $+0{,}020$ macro y $+0{,}010$ binario sobre la variante base D1, con reducción simultánea de la varianza inter-pliegue. La variante con \emph{recorte vertical aleatorio} alcanza Dice binario $0{,}861$ a cobertura $50\%$ y $0{,}843$ a $30\%$, superando los umbrales fijados \emph{a priori} para el requisito de robustez parcial. Como evidencia convergente, las regiones donde D2 más mejora al añadir ERS-18 (T4, T8, T9) coinciden con las que una inspección visual del equipo identificó como infraetiquetadas en IBIO-SD, lo que sugiere un techo de etiquetado más que de capacidad del modelo.
+\end{abstract}
+
+\begin{IEEEkeywords}
+escoliosis, segmentación vertebral, ángulo de Cobb, aprendizaje profundo, imagen médica, radiografía
+\end{IEEEkeywords}
+
+% ============================================================
+% 1. Planteamiento del problema
+% ============================================================
+\section{Planteamiento del Problema}
+\label{sec:problema}
+
+\subsection{Contexto}
+La evaluación radiológica de la columna vertebral incluye la identificación de su estructura, la delimitación de segmentos y valoraciones que dependen de la proyección de la imagen y del diagnóstico. En escoliosis, el diagnóstico y el seguimiento siguen guías clínicas establecidas (SOSORT \cite{sosort}) que requieren intervención manual por parte de especialistas, lo cual es demorado, subjetivo (variabilidad inter-observador de $3$--$5^{\circ}$ \cite{cobb_interrater}) y poco escalable. Las herramientas parcialmente automatizadas existentes presentan fallas cuando la calidad de imagen es baja o cuando la columna aparece de manera incompleta, por ejemplo en radiografías de tórax que muestran solo un subconjunto de vértebras.
+
+\subsection{Pregunta de investigación}
+¿Es posible construir un sistema de aprendizaje profundo que segmente automáticamente la columna vertebral y cada vértebra T1--L5 en radiografías de pacientes sanos y con distintos grados de escoliosis, manteniendo precisión clínicamente útil incluso cuando la columna no se muestra completa, y con un costo computacional compatible con un futuro despliegue portable?
+
+\subsection{Hipótesis}
+Una arquitectura de segmentación multiclase entrenada sobre un conjunto mixto (sano + escoliosis) con anotaciones a nivel de vértebra puede alcanzar valores de Dice/IoU competitivos con el estado del arte mientras conserva un costo de inferencia bajo, y sus predicciones permiten derivar medidas radiológicas (p.~ej.\ ángulo de Cobb) sin pasos de anotación manual.
+
+\subsection{Objetivos}
+\textbf{General.} Desarrollar un sistema de segmentación automática de columna vertebral y vértebras en radiografías de pacientes sanos y con escoliosis, orientado a herramientas de apoyo a medidas radiológicas y a un eventual despliegue portable.
+
+\noindent\textbf{Específicos.}
+\begin{enumerate}
+  \item Curar y auditar el conjunto de datos disponible, definiendo un subconjunto entrenable con cobertura completa de etiquetas T1--L5.
+  \item Diseñar e implementar un pipeline de segmentación multiclase robusto frente a columnas parcialmente visibles.
+  \item Evaluar la calidad de segmentación con \emph{Dice} e \emph{IoU} a nivel de columna y de vértebra.
+  \item Caracterizar de manera complementaria el costo computacional del modelo (tiempo de inferencia, memoria, parámetros), sin que la eficiencia sea criterio excluyente del diseño.
+  \item Derivar, a partir de la segmentación, el ángulo de Cobb como caso de uso clínico de la herramienta.
+\end{enumerate}
+
+\subsection{Alcance y limitaciones}
+Restringimos el proyecto a radiografías anteroposteriores anonimizadas con uso académico/investigativo bajo acuerdo de confidencialidad. No contemplamos la implementación directa sobre un sistema embebido; la propuesta original establece que dicha condición es deseable pero no obligatoria, por lo que nuestro diseño no sacrifica capacidad del modelo a cambio de eficiencia. Consideramos las vértebras T1--L5; no modelamos vértebras cervicales ni sacro. La validación clínica formal queda fuera del alcance.
+
+% ============================================================
+% 2. Estado del arte
+% ============================================================
+\section{Estado del Arte}
+\label{sec:estado-arte}
+
+\subsection{Benchmarks y calibración humana}
+\label{sec:soa-benchmarks}
+
+El benchmark estándar para evaluación automática del ángulo de Cobb es el reto AASCE19 \cite{aasce19} (MICCAI 2019), construido sobre 609 radiografías anteroposteriores anotadas con 68 \emph{landmarks} por vértebra; la métrica oficial es el error porcentual absoluto medio simétrico (SMAPE, \emph{symmetric mean absolute percentage error}) sobre tres ángulos de Cobb, y la mejor entrada del reto (Seg4Reg, \cite{seg4reg}) alcanza un SMAPE de $21{,}7\%$. Un meta-análisis reciente \cite{meta_cobb} pondera 35 trabajos de aprendizaje profundo sobre Cobb e informa un error absoluto medio circular (CMAE, \emph{circular mean absolute error}) \emph{agrupado} de $2{,}99^{\circ}$, con métodos basados en segmentación a $2{,}40^{\circ}$ y métodos basados en \emph{landmark} a $3{,}31^{\circ}$. La calibración humana proporciona una cota inferior natural: la variabilidad inter-observador entre lectores ortopédicos sobre herramientas digitales es de $3$--$5^{\circ}$ SD, con un límite inferior reportado de $\pm 1{,}3^{\circ}$ (intervalo de confianza, IC, del 95\%) en el mejor escenario \cite{cobb_interrater}. Cualquier modelo automático con MAE bajo la varianza humana cae en régimen donde la métrica deja de distinguir entre modelo y anotador. La propuesta del proyecto prioriza segmentación a nivel de píxel antes que estimación de Cobb; informamos esta última como métrica derivada (Sec.~\ref{sec:resultados-cuant}).
+
+\subsection{Métodos basados en landmarks}
+\label{sec:soa-landmarks}
+
+La familia \emph{landmark-based} (BoostNet \cite{boostnet}, VFLD \cite{vfld}, LaNet \cite{lanet}, SpineNET \cite{spinenet}) predice posiciones discretas ---típicamente 4 esquinas por vértebra para 68 puntos en T1--L5--- y calcula Cobb sobre ángulos entre líneas ajustadas a las vértebras de extremo, sin pasar por máscaras a nivel de píxel. La debilidad es que no produce delineación anatómica completa, lo que limita su uso para mediciones radiológicas distintas de Cobb.
+
+\subsection{Métodos basados en segmentación y cascada}
+\label{sec:soa-seg-cascade}
+
+La alternativa estructural es producir una segmentación a nivel de píxel multi-clase y derivar las medidas radiológicas a partir de ella. Seg4Reg \cite{seg4reg} (1er lugar AASCE19) propone una cascada explícita: una primera red segmenta la columna, una segunda regresiona Cobb sobre el mapa de segmentación. Dubost et al.\ \cite{dubost} extraen la \emph{línea media} espinal en lugar de la segmentación completa. SCOLIONET \cite{scolionet} es un U-Net modificado con \emph{Atrous Spatial Pyramid Pooling} y preprocesamiento custom. La pipeline de SNOMED-CT \cite{snomed_pipe} encadena cinco redes especializadas (detección, identificación, segmentación, regresión, anotación) y emite código SNOMED como salida estandarizada. VertXNet \cite{vertxnet} sigue un patrón \emph{detección + identificación} en dos etapas. Trabajos más recientes apuntan a modelos fundacionales como base de la segmentación inductiva \cite{spinefm}.
+
+\subsection{Pre-entrenamiento y transferencia}
+\label{sec:soa-pretrain}
+
+El supuesto de transferibilidad dominante es que el preentrenamiento en ImageNet provee filtros de bajo nivel útiles incluso para imagen médica. La biblioteca \emph{TorchXRayVision} (TXRV, \cite{txrv}) ofrece \emph{backbones} alternativos preentrenados sobre conjuntos de radiografía torácica (CheXpert, MIMIC-CXR, PadChest, NIH-CXR), bajo la hipótesis de que la cercanía de dominio compensa la menor escala del preentrenamiento. Trabajos recientes \cite{ssl_small} indican además que el preentrenamiento autosupervisado puede superar a ImageNet en conjuntos médicos pequeños bajo ciertos regímenes de tasa de aprendizaje.
+
+En nuestro experimento (Sec.~\ref{sec:ablacion}), sustituir el \emph{backbone} ImageNet por uno de TXRV degradó el Dice macro en $-0{,}142$. La causa probable es la pérdida de filtros de bajo nivel especializados: el \emph{cosine annealing} con tasa fuertemente decreciente, aplicado sobre $n \sim 200$ casos, no permite recuperarlos.
+
+\subsection{Brechas identificadas y posicionamiento}
+\label{sec:soa-gaps}
+
+Tres brechas en la literatura motivan el enfoque del presente trabajo:
+
+\begin{enumerate}
+\item \textbf{Calidad de \emph{verdad de referencia} asumida.} La mayoría de los trabajos arriba asumen una verdad de referencia (GT, del inglés \emph{ground truth}) correcta y limpia. Estudios sobre \emph{aprendizaje por atajos} \cite{shortcut} y \emph{checklists} de inteligencia artificial para imagen médica \cite{claim} indican que la auditoría de etiquetado es excepcional y que las cotas de Dice/MAE pueden reflejar ruido de etiquetado más que capacidad del modelo. Pocos trabajos publican análisis cuantitativos de su propia tasa de error de etiquetado.
+\item \textbf{Robustez a campo de visión parcial.} A pesar de su relevancia clínica directa (radiografías de tórax estándar suelen mostrar solo parte de la columna), la evaluación bajo cobertura parcial no es estándar en AASCE19 \cite{aasce19}. Los trabajos comparados \cite{seg4reg, lanet, scolionet} reportan métricas sobre cobertura completa únicamente.
+\item \textbf{Validación clínica frente a optimización métrica.} \cite{mazurowski} documenta que un pipeline Mask R-CNN de Cobb supera el consenso de 7 lectores ortopédicos, lo que abre la pregunta de si la optimización adicional sobre métricas de \emph{benchmark} agrega valor clínico real o si la barra ya está saturada.
+\end{enumerate}
+
+Nos posicionamos en este espacio así (Tabla~\ref{tab:comparacion}): cumplimos el requisito de cobertura parcial (brecha 2), aportamos una auditoría cuantitativa de la calidad de nuestro GT (brecha 1), y nos restringimos deliberadamente a una arquitectura simple (U-Net + ResNet-34, 24M parámetros) sobre un conjunto de datos pequeño ($n=249$ entrenable) para examinar qué se puede lograr sin recurrir a cascadas multi-red o \emph{foundation models}.
+
+\begin{table*}[htbp]
+\caption{Posicionamiento del trabajo frente al estado del arte. Se reportan métricas comparables sobre los conjuntos respectivos; nótese que los conjuntos de datos, particiones y unidades difieren.}
+\label{tab:comparacion}
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Trabajo} & \textbf{Método} & \textbf{Dataset / n} & \textbf{Métrica} \\
+\midrule
+Seg4Reg \cite{seg4reg}        & seg + regresión & AASCE19 / 609 & SMAPE $21{,}7\%$  \\
+LaNet \cite{lanet}            & landmark        & AASCE19 / 609 & CMAE $3{,}63^{\circ}$ \\
+nnU-Net \cite{nnunet} (reproducción, truncada) & U-Net 2D auto-configurada & IBIO-SD / 249 & Dice 2-fold $0{,}634 \pm 0{,}057$ \\
+\textbf{RB-UNet (este trabajo)} & \textbf{U-Net R34 + boundary + ROI} & IBIO-SD / 249 & \textbf{Dice 5-fold $0{,}6946 \pm 0{,}0205$} \\
+                              &                 &               & \textbf{Dice test $0{,}6331 \pm 0{,}0260$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table*}
+
+% ============================================================
+% 3. Metodología
+% ============================================================
+\section{Metodología}
+\label{sec:metodologia}
+
+\subsection{Datos}
+\label{sec:datos}
+
+\textbf{Conjunto principal: IBIO Scoliosis Dataset (IBIO-SD).} El conjunto principal de trabajo, denotado \emph{IBIO-SD} en lo que sigue, está conformado por 250 radiografías anteroposteriores de columna completa (179 con escoliosis y 71 sanas), provistas por el Grupo de Ingeniería Biomédica (IBIO) de la Universidad de los Andes bajo acuerdo de confidencialidad. Todas las imágenes están anonimizadas, sin datos personales identificables, y su uso está restringido al desarrollo académico e investigativo. Cada caso cuenta con dos máscaras a nivel de píxel: una binaria (columna vs.\ fondo) y una multiclase con 17 clases anatómicas correspondientes a las vértebras T1--T12 y L1--L5.
+
+\textbf{Auditoría de completitud (inspección visual del equipo, sin formación radiológica).} Ejecutamos sobre el conjunto principal una auditoría automática que marca como \emph{incompletos} aquellos casos cuya máscara multiclase contiene menos de 17 identificadores de vértebra únicos. La heurística señaló 69 casos como potencialmente defectuosos. En una segunda fase de \emph{inspección visual caso por caso realizada por el equipo} (sin formación radiológica), reclasificamos provisionalmente las 69 alertas en cinco categorías: 46 (67\%) parecen \emph{variantes anatómicas} (sacralización, vértebras transicionales, agenesia), 14 (20\%) presentan campo de visión recortado y por tanto \emph{no son corregibles}, 6 (9\%) las identificamos como \emph{errores aparentes} de etiquetado (vértebras visibles pero no marcadas, confirmadas anatómicamente sobre el subconjunto mid-espinal), 1 caso requirió revisión experta y 2 están demasiado dañados para juzgar. La clasificación es preliminar y no equivale a una validación radiológica formal; reanotamos manualmente los 6 casos identificados como errores aparentes siguiendo el protocolo de paleta documentado en~\cite{ers18_protocol}. No se midió la concordancia inter-observador (Cohen $\kappa$, IoU pareado) frente al anotador original del IBIO-SD; los criterios de clasificación de cada alerta están registrados en el repositorio del proyecto~\cite{project_repo}.
+
+\textbf{Conjunto extendido: Extended Re-annotated Set (ERS-18).} Además, incorporamos 18 radiografías nuevas (6 sanas, 12 con escoliosis) que anotamos manualmente nosotros mismos a partir del conjunto público \emph{Roboflow Universe scoliosis2}. Descartamos las anotaciones originales del conjunto público y aplicamos sobre las imágenes en bruto el mismo protocolo de anotación T1--L5 que el IBIO-SD. \textbf{El procedimiento completo de corrección y expansión de máscaras vertebrales que rige la generación de ERS-18 está publicado en~\cite{ers18_protocol}}, donde se documentan los criterios visuales, la paleta de colores, el flujo de validación y los casos límite. Denotamos este conjunto extendido como \emph{ERS-18}. Estas 18 radiografías tienen una resolución varias veces superior a las del IBIO-SD (orden de magnitud: $\sim$10$^6$ vs.\ $\sim$2$\times 10^5$ píxeles totales por imagen) y sus identificadores de paciente son disjuntos por construcción --- esto permite usarlas como conjunto independiente para evaluar generalización entre fuentes (Sec.~\ref{sec:ood}).
+
+\textbf{Partición.} De los 250 casos del conjunto principal descartamos uno por inconsistencia entre imagen y máscara, lo que deja \textbf{249 casos entrenables} (178 con escoliosis y 71 sanas). De estos, apartamos \textbf{25 como conjunto de prueba reservado}, separados al inicio del proyecto y evaluados una sola vez al cierre. Los \textbf{224 restantes} (160 con escoliosis y 64 sanas) conforman el conjunto de entrenamiento+validación.
+
+Sobre estos 224 aplicamos validación cruzada de 5 pliegues con dos restricciones: estratificación por categoría clínica de severidad de Cobb y agrupamiento por identificador de paciente para evitar fuga entre conjuntos. Las categorías clínicas son Normal ($< 10^{\circ}$), Leve ($10$--$25^{\circ}$), Moderada ($25$--$45^{\circ}$), Severa ($45$--$65^{\circ}$) y Muy severa ($\geq 65^{\circ}$), según los puntos de corte clínicos habituales. Cada pliegue contiene $\sim 45$ casos de validación y $\sim 179$ de entrenamiento.
+
+Cuando informamos resultados sobre \emph{partición única} (80/20, en contraposición a la validación cruzada de 5 pliegues; Sec.~\ref{sec:resultados-cuant}), usamos la partición canónica $80/20$ sobre el mismo conjunto ($\sim 179$ entrenamiento + $\sim 45$ validación + 25 prueba reservada).
+
+En los experimentos que incluyen el conjunto extendido (denotados \emph{D2} en lo que sigue, contrastando con \emph{D1} cuando usamos solo el conjunto principal), inyectamos las 18 radiografías adicionales exclusivamente al subconjunto de \emph{entrenamiento} de cada pliegue y mantenemos el conjunto de validación idéntico al pliegue correspondiente del experimento base, lo que permite una comparación apareada limpia.
+
+\subsection{Pre-procesamiento}
+\label{sec:preprocesamiento}
+
+Las radiografías originales son de tamaño variable (típicamente $\sim$240$\times$880 píxeles en el conjunto principal y $\sim$2048$\times$600 en el conjunto extendido). Cada caso pasa por la siguiente cadena determinística de preprocesamiento:
+
+\begin{enumerate}
+  \item \textbf{Recorte por región de interés (ROI, del inglés \emph{region of interest}) a partir de la máscara binaria.} Calculamos la \emph{bounding-box} de la máscara binaria de columna y recortamos tanto la imagen como las máscaras a esa región, con un margen relativo del 5\%. La máscara binaria está disponible como anotación oficial tanto en el conjunto de entrenamiento como en el conjunto reservado del IBIO-SD, por lo que el cálculo de la ROI es idéntico en ambos regímenes y \emph{no} depende de una predicción previa del propio modelo. Para escenarios reales de despliegue (radiografías sin máscara binaria disponible) este paso requeriría un detector externo de columna como paso previo; en este trabajo dejamos esa ruta como interfaz expuesta pero no entrenada, y todas las métricas reportadas usan la ROI derivada de la máscara binaria del dataset. Este paso es el componente con mayor aporte individual al rendimiento (Sec.~\ref{sec:ablacion}).
+  \item \textbf{Redimensionamiento a 512$\times$256.} Imagen con interpolación bilineal; máscaras (binaria y multiclase) con interpolación por vecino más cercano para no introducir clases espurias.
+  \item \textbf{Normalización mínima.} Dividimos por 255 para llevar la intensidad al rango $[0,1]$. \emph{No} aplicamos \emph{Contrast-Limited Adaptive Histogram Equalization} (CLAHE) ni normalización \emph{z-score}; nuestro análisis de componentes inicial (Sec.~\ref{sec:ablacion}) mostró que CLAHE \emph{no} es estadísticamente positivo en nuestro pipeline y que la normalización ImageNet rompe la alineación del \emph{backbone} preentrenado.
+  \item \textbf{Remap de clases.} Mantenemos la máscara multiclase tal cual (originalmente codificada con IDs 1..17 más cero de fondo): $0 = \text{fondo}$, $1..17 = \text{T1..L5}$, para un total de 18 canales de salida.
+\end{enumerate}
+
+En tiempo de entrenamiento aplicamos una \emph{aumentación} \emph{v4} (rotación $\pm 5^{\circ}$, traslación $\pm 5\%$, escala $\pm 10\%$, flip horizontal con $p=0.5$, ajuste de brillo/contraste $\pm 10\%$). Para el experimento de robustez a campo de visión parcial añadimos además \emph{RandomVerticalCrop}, que recorta una fracción aleatoria $f \sim U(0{,}3,\,1{,}0)$ del eje vertical con probabilidad $p=0{,}5$.
+
+\subsection{Modelo y pipeline}
+\label{sec:modelo}
+
+\textbf{Arquitectura.} El modelo propuesto, al que denominaremos \emph{ROI-BoundaryUNet} (RB-UNet) por sus dos contribuciones técnicas centrales (recorte por región de interés y pérdida \emph{boundary-aware}), es una \emph{U-Net codificadora-decodificadora} con \emph{backbone} \emph{ResNet-34} preentrenado en ImageNet. Adaptamos la capa de entrada original (3 canales RGB) a entrada monocanal en escala de grises promediando los pesos de los tres canales RGB, preservando la inicialización preentrenada. El decodificador es de estilo U-Net con bloques de convolución $3\times 3$, \emph{normalización por lotes}, y \emph{conexiones de salto} desde cada nivel del codificador. La salida produce 18 mapas de logits (fondo + 17 vértebras T1..L5). El modelo tiene aproximadamente 24M parámetros (encoder ResNet-34 $\sim 21$M + decoder U-Net $\sim 3$M).
+
+\textbf{Función de pérdida.} Combinación lineal de tres términos:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{\text{CE}} + \mathcal{L}_{\text{Dice}} + \lambda_b \,\mathcal{L}_{\text{boundary}},
+\end{equation}
+con $\lambda_b = 0{,}05$ seleccionado mediante el análisis de componentes (Sec.~\ref{sec:ablacion}); $\mathcal{L}_{\text{CE}}$ es entropía cruzada ponderada por clase (peso inverso a la frecuencia), $\mathcal{L}_{\text{Dice}}$ es \emph{Dice suave} multiclase con promedio macro sobre clases presentes en el GT, y $\mathcal{L}_{\text{boundary}}$ es el término de \emph{boundary-aware loss} \cite{kervadec_boundary_2019} que penaliza errores cerca de los contornos. Siguiendo \cite{kervadec_boundary_2019}, la pérdida de frontera se computa como un producto sobre la rejilla de píxeles entre la probabilidad de primer plano predicha $s_\theta(p)$ y un mapa precomputado de distancia con signo $\phi_G(p)$ derivado de la máscara GT (negativo dentro del objeto, positivo fuera):
+\begin{equation}
+\mathcal{L}_{\text{boundary}} = \frac{1}{|\Omega|} \sum_{p \in \Omega} \phi_G(p) \, s_\theta(p),
+\end{equation}
+de modo que los errores próximos a la frontera GT reciben mayor peso que los errores en regiones planas.
+
+\textbf{Optimización.} Usamos \emph{AdamW} con tasas de aprendizaje diferenciadas ($\eta_{\text{enc}} = 10^{-4}$, $\eta_{\text{dec}} = 10^{-3}$), decaimiento de pesos $= 2\cdot 10^{-4}$ y tamaño de lote $= 4$. Mantenemos el codificador congelado durante las primeras 10 épocas para preservar las características ImageNet y luego lo liberamos.
+
+Empleamos \emph{cosine annealing} sobre 100 épocas y promedio móvil exponencial (EMA, \emph{exponential moving average}) de los pesos con decaimiento $0{,}999$. Evaluamos ambos \emph{checkpoints} (en vivo y EMA) y elegimos el de mayor Dice de validación. Aplicamos detención temprana (\emph{early stopping}) con paciencia de 20 épocas sin mejora y umbral $\Delta_{\min} = 0$ en todos los experimentos principales (5-fold CV de RB-UNet y D2).
+
+En las corridas sobre \emph{partición única} de la comparación entre D1 y D2 y de la grilla de campo de visión parcial usamos una paciencia reducida a 10 épocas, porque el tiempo por celda era el cuello de botella; discutimos este matiz al reportar las cifras correspondientes (Sec.~\ref{sec:resultados-cuant}).
+
+\textbf{Validación cruzada.} Para el resultado principal (Sec.~\ref{sec:resultados}) ejecutamos validación cruzada de 5 pliegues sobre los 224 casos del conjunto de entrenamiento+validación (excluyendo los 25 casos de prueba reservados). Generamos los pliegues con un esquema estratificado-agrupado: la estratificación garantiza distribución homogénea de severidades de Cobb entre pliegues, y la agrupación por identificador de paciente impide que un mismo paciente aparezca en entrenamiento y validación de un mismo pliegue. Fijamos la semilla aleatoria a $42$ para reproducibilidad.
+
+\textbf{Ramas exploratorias.} En paralelo a RB-UNet (pipeline final) el equipo entrenó dos ramas no apareadas que se mantuvieron fuera del test sellado para preservar la evaluación única: \emph{Modelo 3} (DeepLabV3+ con \emph{backbone} EfficientNet-B5, $\sim$40--50M parámetros, conjunto y partición distintos) y \emph{multi-tarea v4} (cabeza de regresión Cobb dedicada sobre la red de segmentación, validada en 5-fold CV interna; Sec.~\ref{sec:discusion}). Sus cifras se reportan como contexto del rango explorado, no como puntos de comparación con D1/D2.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  node distance=3mm,
+  io/.style={draw, rounded corners=3pt, minimum height=6mm, minimum width=42mm, align=center, inner sep=3pt, fill=black!3},
+  stage/.style={draw, rounded corners=3pt, minimum height=11mm, minimum width=52mm, align=center, inner sep=4pt},
+  net/.style={draw, rounded corners=3pt, minimum height=13mm, minimum width=52mm, align=center, inner sep=4pt, fill=black!12, very thick},
+  ar/.style={-{Stealth[length=2.2mm,width=1.6mm]}, thick}
+]
+\node[io] (rx) {Radiografía AP};
+\node[stage, below=of rx] (pre) {\textbf{Preprocesamiento}\\Recorte ROI $\;\to\;$ $512{\times}256$};
+\node[net, below=of pre] (net) {\textbf{RB-UNet (ResNet-34)}\\$\sim$24\,M parámetros};
+\node[stage, below=of net] (post) {\textbf{Postprocesamiento}\\18 mapas de \emph{logits} $\;\to\;$ \emph{argmax}};
+\node[io, below=of post] (mask) {Máscara multiclase T1--L5};
+\draw[ar] (rx) -- (pre);
+\draw[ar] (pre) -- (net);
+\draw[ar] (net) -- (post);
+\draw[ar] (post) -- (mask);
+\end{tikzpicture}
+\caption{Pipeline de segmentación propuesto. El recorte por región de interés usa la máscara binaria como \emph{prior} espacial; la red codificadora-decodificadora produce 18 mapas de probabilidad (fondo + T1--L5) y el \emph{argmax} por píxel genera la máscara multiclase final.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Métricas}
+\label{sec:metricas}
+
+\textbf{Segmentación.} Las métricas principales son:
+\begin{itemize}
+  \item \emph{Dice binario}: $2|P \cap G| / (|P| + |G|)$ donde $P$ es la predicción de primer plano y $G$ el GT de primer plano (cualquier vértebra). Mide cobertura espinal global.
+  \item \emph{Dice multiclase macro}: promedio del Dice por clase sobre las clases presentes en el GT de cada imagen. El cero de fondo no entra al promedio. Esta variante \emph{sensible a presencia} evita penalizar al modelo por vértebras anatómicamente ausentes (p.\,ej.\ sacralización de L5). Como contrapartida, la métrica admite un sesgo opuesto: una imagen con pocas clases presentes en el GT (p.\,ej.\ una radiografía con campo de visión recortado donde solo se anotaron 8--10 vértebras) tiene un denominador efectivo menor en el promedio macro, lo que puede inflar la media por imagen cuando esas pocas clases se segmentan bien. Por construcción esto solo se manifiesta en casos con cobertura incompleta del GT y por tanto coincide con la región anatómica que la auditoría (Sec.~\ref{sec:datos}) identifica como infraetiquetada; reportamos por ello desempeño \emph{por clase} (Tabla~\ref{tab:perclass}) además del promedio macro, de modo que el lector pueda separar el aporte de cada vértebra del efecto agregado.
+\end{itemize}
+Para cada métrica presentamos la media sobre el conjunto de validación, y para el conjunto reservado mostramos además el intervalo de confianza del 95\% mediante \emph{bootstrap} (2000 re-muestreos) sobre los valores de Dice por imagen.
+
+\textbf{Robustez a campo de visión parcial.} Para evaluar el requerimiento de campo de visión parcial del proyecto construimos una grilla cruzada de 7 fracciones de cobertura ($f \in \{0{,}2,\,0{,}3,\,0{,}4,\,0{,}5,\,0{,}6,\,0{,}8,\,1{,}0\}$) por 4 modos de recorte (\emph{superior}, \emph{inferior}, \emph{medio}, \emph{aleatorio}), reportando 4 métricas por celda: Dice binario, Dice multiclase \emph{sensible a recorte} (que ignora vértebras fuera del recorte), completitud (fracción de vértebras del GT visibles que el modelo recupera) y tasa de alucinación (fracción de píxeles predichos fuera del recorte).
+
+\textbf{Métrica clínica derivada.} Estimamos el ángulo de Cobb a partir de la segmentación: para cada caso ajustamos rectas tangentes a las vértebras superior e inferior con mayor inclinación a lo largo del eje espinal segmentado, y calculamos el ángulo de Cobb como el ángulo entre ambas rectas. Reportamos el MAE en grados frente a la anotación ortopédica disponible para los casos con escoliosis, con IC del 95\% mediante \emph{bootstrap}. Esta es una métrica derivada (valor agregado) y no la métrica de la cual depende el cumplimiento del proyecto.
+
+\textbf{Costo computacional.} Caracterizamos el costo por el número de parámetros del modelo ($\sim$24M) y por el tiempo medio de inferencia por imagen (batch $=1$, $512{\times}256$, sin TTA). Sobre CPU x86-64 medimos $87{,}6$\,ms/imagen; sobre GPU NVIDIA Tesla T4 estimamos un orden de magnitud menor ($\sim$15--25\,ms) extrapolando la relación CPU/T4 típica para U-Net + ResNet-34, sin medición directa en este trabajo.
+
+\textbf{Umbrales de calidad reportados.} Usamos dos clases de umbrales: (i)~\emph{interno del equipo} (Dice multiclase macro $\geq 0{,}665$), criterio operacional fijado en planificación como margen sobre una cota empírica previa de $0{,}655$ ---no proviene de la propuesta; y (ii)~\emph{de la propuesta} (Dice binario $\geq 0{,}80$ a $f=0{,}5$ y $\geq 0{,}65$ a $f=0{,}3$), fijados \emph{a priori} para operacionalizar el requisito cualitativo de robustez a campo de visión parcial (Sec.~\ref{sec:partial-fov}).
+
+\subsection{Entorno experimental}
+\label{sec:entorno}
+
+\textbf{Stack.} Implementamos el código en \emph{PyTorch}. Versionamos datos y \emph{checkpoints} con un sistema de control de versiones para datos (DVC) sobre almacenamiento en la nube. Persistimos las métricas y artefactos de cada corrida como archivos JSON versionados junto al \emph{checkpoint} correspondiente. Centralizamos los hiperparámetros en un único archivo de configuración como fuente de verdad.
+
+\textbf{Hardware.} Ejecutamos el desarrollo y los experimentos exploratorios localmente sobre GPU AMD. Ejecutamos las corridas de validación cruzada definitivas sobre una instancia de cómputo en la nube provisionada en AWS.
+
+\textbf{Reproducibilidad.} Generamos los pliegues con semilla aleatoria fija ($42$) y persistimos el identificador de la partición con cada modelo entrenado. Registramos la configuración exacta de cada corrida mediante un \emph{hash} sobre los hiperparámetros activos, lo que permite \emph{caching} de corridas idénticas y trazabilidad determinística.
+
+\textbf{Disponibilidad.} El código de entrenamiento, inferencia y evaluación, junto con \texttt{params.yaml} y los scripts de figuras del paper, está disponible en el repositorio del proyecto~\cite{project_repo}. Las imágenes del conjunto principal IBIO-SD no se distribuyen por acuerdo de confidencialidad; el subconjunto ERS-18 (18 radiografías reanotadas) se libera junto con el protocolo de anotación~\cite{ers18_protocol}.
+
+% ============================================================
+% 4. Resultados y análisis
+% ============================================================
+\section{Resultados y Análisis}
+\label{sec:resultados}
+
+\subsection{Resultados cuantitativos}
+\label{sec:resultados-cuant}
+
+\textbf{Condición del conjunto reservado (advertencia previa al resultado).} Antes de presentar las cifras finales, advertimos sobre la condición de evaluación del test. Los 25 casos reservados se apartaron al inicio del proyecto y se evaluaron \emph{dos veces}: una primera vez con los 5 \emph{checkpoints} de la variante base D1 al cierre del entrenamiento sobre IBIO-SD, y una segunda vez con los 5 \emph{checkpoints} de la variante extendida D2 (IBIO-SD $\cup$ ERS-18) cuando ésta quedó lista. Aunque D2 reutilizó exactamente la configuración de D1 \emph{sin re-tuning} sobre el test, la primera pasada ya informó al equipo de la brecha val$\rightarrow$test ($-0{,}06$ macro). Por tanto, la condición ``test evaluado una sola vez'' \emph{no se cumple en sentido estricto}: el conjunto reservado debe leerse como \emph{parcialmente sellado}. Reportamos a continuación tanto las cifras D1 como D2 y la diferencia apareada $+0{,}020$/$+0{,}010$; esta diferencia es honesta como observación pareada, pero los intervalos $\pm 0{,}017$ macro y $\pm 0{,}003$ binario deben leerse como dispersión inter-pliegue de un test parcialmente sellado, no como intervalos de confianza inferenciales, dado $n=25$ y la dependencia entre modelos. Una segunda partición ciega restablecería la condición y queda explícitamente como trabajo futuro.
+
+La Tabla~\ref{tab:resultados} resume el desempeño de RB-UNet bajo tres regímenes de evaluación: partición canónica única (\emph{partición única}, val=45), validación cruzada de 5 pliegues sobre los 224 casos de entrenamiento+validación definidos en Sec.~\ref{sec:datos}, y conjunto de prueba reservado (25 casos, parcialmente sellado por la condición descrita arriba).
+
+\begin{table*}[htbp]
+\caption{Desempeño de segmentación bajo los tres regímenes de evaluación. Filas en negrita: resultados sobre el conjunto reservado para D1 (base, primera evaluación del test) y D2 (extendido con ERS-18, segunda evaluación deliberada). \textbf{D2 es la mejor variante sobre el conjunto reservado}, con $+0{,}020$ macro y $+0{,}010$ binario respecto a D1 y menor varianza inter-pliegue. El Dice binario satura ($\sim 0{,}87$--$0{,}89$); la variable de interés es el Dice multiclase macro. \textsuperscript{$\ddagger$}\,\emph{Modelo 3} es una rama exploratoria del equipo sobre conjunto y partición distintos (267 radiografías, $\sim$54 val/pliegue, sin TTA, sin verificación de no solapamiento con el test sellado); se reporta como contexto del rango explorado, \textbf{no} constituye comparación apareada con D1/D2.}
+\label{tab:resultados}
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Régimen de evaluación} & \textbf{Dice binario} & \textbf{Dice mc macro} & \textbf{n} \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{RB-UNet base --- entrenamiento sobre IBIO-SD (sin extensión)}} \\
+\quad Single-split val                  & 0,882                       & 0,6739                       & 45 \\
+\quad 5-fold CV val                     & 0,882                       & 0,6946 $\pm$ 0,021           & $\sim$45 \\
+\quad \textbf{Test reservado (final)}   & \textbf{0,8771 $\pm$ 0,007} & \textbf{0,6331 $\pm$ 0,026}  & 25 \\
+\quad OOD zero-shot (sobre ERS-18)      & 0,8715 $\pm$ 0,008          & 0,6560 $\pm$ 0,033           & 18 \\
+\addlinespace[4pt]
+\multicolumn{4}{@{}l}{\textit{Variante D2 — entrenamiento sobre IBIO-SD + ERS-18}} \\
+\quad Single-split val                  & ---                         & 0,6650                       & 45 \\
+\quad 5-fold CV val                     & 0,8871 $\pm$ 0,002          & 0,7065 $\pm$ 0,017           & $\sim$45 \\
+\quad \textbf{Test reservado (final)}   & \textbf{0,8868 $\pm$ 0,003} & \textbf{0,6530 $\pm$ 0,017}  & 25 \\
+\addlinespace[4pt]
+\multicolumn{4}{@{}l}{\textit{Modelo 3 --- DeepLabV3+ / EfficientNet-B5\textsuperscript{$\ddagger$} (rama exploratoria)}} \\
+\quad 5-fold CV val (raw)               & 0,896 $\pm$ 0,003           & 0,691 $\pm$ 0,039            & $\sim$54 \\
+\quad 5-fold CV val (post-procesada)    & 0,888 $\pm$ 0,007           & 0,690 $\pm$ 0,040            & $\sim$54 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table*}
+
+\textbf{Resultado principal — variante D2.} La mejor variante del modelo (D2, entrenada sobre IBIO-SD + ERS-18) alcanza sobre el conjunto reservado de 25 casos \textbf{Dice multiclase macro $0{,}6530 \pm 0{,}0174$} y \textbf{Dice binario $0{,}8868 \pm 0{,}0026$}, donde el $\pm$ es la desviación estándar inter-pliegue sobre los 5 \emph{checkpoints} de la validación cruzada (no un intervalo de confianza \emph{bootstrap} por caso). La brecha val $\rightarrow$ test es de $-0{,}054$ en Dice macro, dentro del rango típico de generalización (no detectamos fuga inter-conjunto). El umbral interno del equipo definido en Sec.~\ref{sec:metricas} (Dice multiclase macro $\geq 0{,}665$) queda cubierto con margen $+0{,}042$ en validación cruzada (val 5-fold $0{,}7065$).
+
+\textbf{Resultado comparativo — variante base D1.} La variante base D1 (entrenada solo sobre IBIO-SD, sin ERS-18) alcanza sobre el mismo conjunto reservado Dice macro $0{,}6331 \pm 0{,}0260$ y Dice binario $0{,}8771 \pm 0{,}0066$.
+
+\textbf{La extensión con ERS-18 mejora el test en $+0{,}020$ macro y $+0{,}010$ binario}, con reducción simultánea de la varianza entre pliegues en ambas métricas ($\sigma$ macro: $0{,}026 \rightarrow 0{,}017$; $\sigma$ binario: $0{,}007 \rightarrow 0{,}003$). En validación cruzada la mejora correspondiente es $+0{,}012$ macro ($0{,}6946 \rightarrow 0{,}7065$).
+
+El efecto sobre el test (25 casos) es \emph{mayor} que el efecto en validación ($\sim 224$ casos en 5 pliegues), patrón consistente con la hipótesis de que el ERS-18 aporta señal particularmente útil para los casos reservados.\footnote{En \emph{partición única} aislado el efecto aparente del ERS-18 es $+0{,}045$ macro; menos confiable que la 5-fold ($\sim 0{,}03$ atribuible a paciencia distinta entre las dos corridas).}
+
+\textbf{Resultado clínico derivado.} El ángulo de Cobb estimado \emph{post-hoc} por tangentes \emph{end-plate} sobre la salida del segmentador presenta MAE $\mathbf{27{,}77^{\circ} \pm 0{,}27^{\circ}}$ para D2 ($27{,}58^{\circ} \pm 0{,}24^{\circ}$ para D1) sobre los 18 casos con escoliosis del conjunto reservado; el $\pm$ es la desviación inter-\emph{checkpoint} (intervalos \emph{bootstrap} por caso $\sim [22^{\circ},33^{\circ}]$). La cifra está muy por encima de la barra clínica \cite{cobb_interrater} y del estado del arte (SOTA, \emph{state of the art}) \cite{meta_cobb}; ver discusión en Sec.~\ref{sec:discusion}.
+
+\textbf{Desempeño por vértebra (conjunto reservado, variante D2).} La Tabla~\ref{tab:perclass} presenta el Dice multiclase \emph{agrupado} por clase de la variante final D2 sobre los 25 casos reservados (con \emph{aumentación en tiempo de prueba} de \emph{horizontal flip}), promediado sobre los 5 \emph{checkpoints} de la validación cruzada. La columna $\sigma$ indica la desviación estándar inter-\emph{fold}; la columna \textbf{D2 − D1} muestra la ganancia por clase respecto a la variante base D1 sobre el mismo conjunto reservado.
+
+\begin{table*}[htbp]
+\caption{Dice multiclase \emph{agrupado} por clase de la \textbf{variante final D2 (RB-UNet entrenada sobre IBIO-SD + ERS-18)} sobre el conjunto reservado (n=25), promediado sobre los 5 \emph{checkpoints} 5-fold. Columna \textbf{D2 − D1} es la ganancia por clase respecto a la variante base D1 (RB-UNet entrenado solo sobre IBIO-SD) sobre el mismo conjunto reservado. D2 mejora 15 de 17 clases (solo L1 y L2 presentan regresiones menores $\leq 0{,}004$, dentro del ruido inter-\emph{fold}); las mayores ganancias se concentran en T4 ($+0{,}030$) y T8--T9 ($+0{,}036$ y $+0{,}038$), región mid-espinal que la auditoría visual (Sec.~\ref{sec:datos}) identifica como infraetiquetada en el IBIO-SD.}
+\label{tab:perclass}
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}lccc|lccc@{}}
+\toprule
+ & \multicolumn{2}{c}{\textbf{D2 (modelo final)}} & \textbf{Efecto ERS-18} & & \multicolumn{2}{c}{\textbf{D2 (modelo final)}} & \textbf{Efecto ERS-18} \\
+ & \multicolumn{2}{c}{\scriptsize conjunto reservado n=25} & \scriptsize conjunto reservado n=25 & & \multicolumn{2}{c}{\scriptsize conjunto reservado n=25} & \scriptsize conjunto reservado n=25 \\
+\textbf{Clase} & \textbf{Dice $\mu$} & \textbf{$\sigma$} & \textbf{D2 − D1} & \textbf{Clase} & \textbf{Dice $\mu$} & \textbf{$\sigma$} & \textbf{D2 − D1} \\
+\midrule
+T1  & 0{,}762 & 0{,}038 & $+0{,}001$ & T10           & 0{,}636      & 0{,}034      & $+0{,}022$ \\
+T2  & 0{,}716 & 0{,}047 & $+0{,}004$ & T11           & 0{,}612      & 0{,}035      & $+0{,}013$ \\
+T3  & 0{,}664 & 0{,}050 & $+0{,}014$ & T12           & 0{,}593      & 0{,}036      & $+0{,}007$ \\
+T4  & 0{,}616 & 0{,}035 & $+0{,}030$ & L1            & 0{,}608      & 0{,}043      & $-0{,}002$ \\
+T5  & 0{,}604 & 0{,}032 & $+0{,}021$ & L2            & 0{,}631      & 0{,}046      & $-0{,}004$ \\
+T6  & 0{,}604 & 0{,}027 & $+0{,}005$ & L3            & 0{,}714      & 0{,}036      & $+0{,}015$ \\
+T7  & 0{,}606 & 0{,}032 & $+0{,}010$ & L4            & 0{,}750      & 0{,}017      & $+0{,}009$ \\
+T8  & 0{,}622 & 0{,}044 & $+0{,}036$ & L5            & 0{,}683      & 0{,}022      & $+0{,}013$ \\
+T9  & 0{,}647 & 0{,}030 & $+0{,}038$ & \emph{macro}  & \emph{0,653} & \emph{0,017} & \emph{+0,020} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table*}
+
+Destacamos dos patrones del desglose por clase:
+\begin{enumerate}
+\item \textbf{T1 y L4 son las clases mejor segmentadas} (Dice $0{,}76$ y $0{,}75$). T1 marca el límite superior del campo de visión típico y L4 el ancla anatómica fiable antes de la transición sacra; en ambos casos el modelo aprende un a priori fuerte de posición.
+\item \textbf{La ganancia de D2 coincide con las regiones que la auditoría identificó como infraetiquetadas.} La región torácica media (T4--T8) y la transición toracolumbar (T12--L2) concentran la incertidumbre (Dice $0{,}59$--$0{,}63$) y son exactamente donde la auditoría del GT (Sec.~\ref{sec:datos}) detectó mayor etiquetado incompleto. D2 mejora 15 de 17 clases sobre el conjunto reservado (L1 y L2 retroceden $\leq 0{,}004$, dentro del ruido); las mayores ganancias se concentran en T8 ($+0{,}036$), T9 ($+0{,}038$) y T4 ($+0{,}030$), mientras los extremos ya saturados (T1, L4) ganan $+0{,}001$ a $+0{,}009$. La varianza inter-\emph{fold} cae uniformemente (13 de 17 clases, $\sigma$ macro $0{,}026 \rightarrow 0{,}017$), lo que indica que el ERS-18 también estabiliza la estimación entre pliegues. La concordancia entre dirección de la auditoría y dirección de la ganancia empírica es la evidencia más fuerte de que el cuello de botella es la calidad del GT y no la capacidad del modelo.
+\end{enumerate}
+
+La Fig.~\ref{fig:gallery} ilustra estos patrones de manera cualitativa sobre cuatro casos representativos del conjunto reservado, uno por categoría clínica de severidad, e incluye una quinta columna con un ejemplo de \emph{cobertura parcial} ---el mismo caso de la columna ``muy severo'' tras un recorte vertical determinista, predicho por la variante \emph{partial-FOV} discutida en Sec.~\ref{sec:partial-fov}--- como anticipo cualitativo de la robustez a campo de visión parcial. El predominio visual del color verde en la fila de diferencia confirma que el modo de error dominante es el desplazamiento de identificadores entre vértebras adyacentes (amarillo) y no los falsos positivos (rojo, casi ausentes) ni la ausencia de detección (azul, restringida a bordes de cada vértebra).
+
+\begin{figure*}[htbp]
+\centerline{\includegraphics[width=\linewidth]{paper_fig2_gallery.png}}
+\caption{Galería cualitativa de la variante final D2 sobre casos representativos del conjunto reservado (n=25). Columnas 1--4 (cobertura completa): caso de Dice multiclase \emph{mediano} por categoría clínica de severidad (Normal, Moderado, Severo, Muy severo; rangos en Sec.~\ref{sec:datos}; el test no contiene casos leves). Columna 5 (cobertura parcial): el caso de la columna 4 (Scoliosis\_196, Cobb $68{,}1°$) tras recorte vertical $f=0{,}5$ \emph{top}, predicho por la variante \emph{partial-FOV} (Dice multiclase $0{,}828$ sobre la región visible). Filas: radiografía / GT / predicción / mapa de diferencia (código de color descrito en §\ref{sec:errores}).}
+\label{fig:gallery}
+\end{figure*}
+
+\subsection{Robustez a campo de visión parcial}
+\label{sec:partial-fov}
+
+La propuesta del proyecto exige robustez del modelo cuando la radiografía no muestra la columna completa. Entrenamos una variante \emph{robusta a campo parcial} del modelo propuesto, idéntica en arquitectura y preprocesamiento, agregando únicamente una \emph{aumentación} de \emph{recorte vertical aleatorio} durante el entrenamiento. Esta augmentación, con probabilidad $p=0{,}5$ y fracción de cobertura $f \sim U(0{,}3,\,1{,}0)$, simula radiografías con campo de visión parcial sobre las que el modelo debe seguir segmentando correctamente. Realizamos la evaluación sobre la grilla cruzada definida en Sec.~\ref{sec:metricas}.
+
+La Tabla~\ref{tab:partial-fov} presenta el Dice binario por fracción de cobertura $f$ y modo de recorte, junto con la diferencia frente al umbral mínimo de la propuesta.
+
+\begin{table}[htbp]
+\caption{Robustez a campo de visión parcial (variante con \emph{recorte vertical aleatorio}, 5-fold CV, $n=224$ por celda). Dice binario por fracción de cobertura $f$ y modo de recorte; última columna: media entre modos y diferencia frente al umbral mínimo de la propuesta. Filas $f \in \{0{,}2, 0{,}4, 0{,}6, 0{,}8\}$ omitidas por monotonicidad; la grilla completa es plana entre $f=0{,}5$ y $f=1{,}0$ (variación $< 0{,}02$).}
+\label{tab:partial-fov}
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\footnotesize
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+\textbf{$f$} & \textbf{inferior} & \textbf{medio} & \textbf{aleat.} & \textbf{superior} & \textbf{media (Δ umbral)} \\
+\midrule
+0{,}3 & 0{,}831 & 0{,}858 & 0{,}845 & 0{,}836 & \textbf{0{,}843} \,($+0{,}193$) \\
+0{,}5 & 0{,}850 & 0{,}869 & 0{,}863 & 0{,}861 & \textbf{0{,}861} \,($+0{,}061$) \\
+1{,}0 & 0{,}851 & 0{,}851 & 0{,}851 & 0{,}851 & 0{,}851 \,(---) \\
+\bottomrule
+\end{tabular}\\[2pt]
+{\scriptsize Dispersión inter-modo a $f=0{,}5$: $0{,}019$. Costo de la \emph{aumentación} a $f=1{,}0$: $-0{,}031$ binario / $-0{,}058$ macro frente al modelo base sin recorte vertical.}
+\end{center}
+\end{table}
+
+El requisito de campo de visión parcial se satisface con holgura: $+0{,}061$ sobre $f=0{,}5$ y $+0{,}193$ sobre $f=0{,}3$. El desempeño binario es prácticamente plano entre $f=0{,}5$ y $f=1{,}0$ y la dispersión entre modos de recorte ($0{,}019$ a $f=0{,}5$) indica invariancia a la posición del recorte. La adición de \emph{RandomVerticalCrop} no requirió cambios arquitectónicos: el codificador-decodificador permanece idéntico al pipeline principal.
+
+\textbf{Costo de la \emph{aumentación}.} La variante robusta a campo parcial paga un costo en cobertura completa: el Dice binario a $f=1{,}0$ cae de $\sim 0{,}882$ (modelo base, sin recorte vertical) a $0{,}851$ (variante con recorte vertical), una pérdida de $\sim 0{,}031$ ($-3{,}5\%$ relativo); el Dice multiclase macro cae de $0{,}6946 \pm 0{,}0205$ a $0{,}6371 \pm 0{,}0438$ (media 5-fold). Parte de la caída macro se debe al cambio del eje de evaluación (la métrica \emph{sensible a recorte} ignora vértebras fuera del recorte y reduce el denominador efectivo), no solo a degradación del modelo. El compromiso neto es: pequeña pérdida en cobertura completa a cambio de robustez en cobertura parcial.
+
+\subsection{Generalización fuera de distribución}
+\label{sec:ood}
+
+Evaluamos el comportamiento del modelo propuesto (entrenado únicamente sobre el IBIO-SD) frente a las 18 radiografías del ERS-18 (anotadas siguiendo el protocolo publicado en~\cite{ers18_protocol}; Sec.~\ref{sec:datos}). El ERS-18 constituye una distribución diferente respecto al entrenamiento ---lo que se conoce como evaluación \emph{fuera de distribución} (OOD, del inglés \emph{out-of-distribution}): resolución $\sim$10$\times$ superior, conjunto de datos de origen distinto, anotador independiente, e identificadores de paciente disjuntos por construcción. El IBIO-SD, sobre el que entrenamos, actúa como distribución \emph{interna} (ID, del inglés \emph{in-distribution}).
+
+El Dice multiclase macro promedio sobre los 5 \emph{checkpoints} de 5-fold es $0{,}6560 \pm 0{,}0328$ sobre ERS-18, una caída de $-0{,}04$ respecto al promedio dentro de distribución sobre IBIO-SD ($0{,}6946 \pm 0{,}0205$). La magnitud de la caída se encuentra en el extremo bajo del rango típico para evaluación entre dominios en imagen médica (5--10\% absoluto en Dice). Los valores por pliegue son (Dice val ID $\rightarrow$ Dice ERS-18 zero-shot, $\Delta$): fold 0 $0{,}671 \rightarrow 0{,}709$ ($+0{,}038$); fold 1 $0{,}693 \rightarrow 0{,}624$ ($-0{,}069$); fold 2 $0{,}673 \rightarrow 0{,}680$ ($+0{,}007$); fold 3 $0{,}717 \rightarrow 0{,}633$ ($-0{,}084$); fold 4 $0{,}719 \rightarrow 0{,}635$ ($-0{,}084$); media $\Delta = -0{,}039$.
+
+Tres observaciones cuantitativas adicionales son relevantes:
+
+\begin{enumerate}
+\item \textbf{Varianza inter-pliegue elevada.} La desviación estándar de la cifra OOD ($\sigma = 0{,}0328$) es 1{,}6$\times$ mayor que la desviación estándar dentro de distribución ($\sigma = 0{,}0205$). 18 casos resultan un número limitado para acotar la varianza de generalización; aumentar el conjunto de evaluación con etiquetado limpio es trabajo futuro.
+\item \textbf{Correlación negativa aparente entre ajuste dentro de distribución y generalización.} Los pliegues con mayor Dice de validación dentro de distribución (pliegues 3 y 4, $0{,}717$ y $0{,}719$) presentan los menores valores OOD ($0{,}633$ y $0{,}635$); inversamente, el pliegue con menor Dice de validación ($0{,}671$) obtiene el mejor zero-shot ($0{,}709$). El patrón es compatible con un ligero sobreajuste, pero no es concluyente sobre apenas 5 pliegues.
+\item \textbf{Concentración del refuerzo en columna media-baja.} Cuando evaluamos D2 (entrenado incluyendo los 18 casos extendidos; válido solo como cota superior porque los vio en entrenamiento) sobre los mismos 18, las mayores ganancias por clase aparecen en T11--L5 ($+0{,}19$ a $+0{,}30$ frente al primer pliegue evaluado \emph{zero-shot}), exactamente la región donde el GT del conjunto principal presenta menor cobertura: L5 está ausente en el 64\% de las máscaras, mayoritariamente por variante anatómica legítima (sacralización, vértebras transicionales) más que por error de etiquetado.
+\end{enumerate}
+
+\subsection{Análisis de contribución por componente}
+\label{sec:ablacion}
+
+La Tabla~\ref{tab:ablacion} resume el efecto incremental de cada componente del pipeline final sobre el conjunto de validación \emph{partición única}.
+
+\begin{table*}[htbp]
+\caption{Contribución de cada componente del pipeline propuesto. \textit{Sección superior:} construcción incremental --- cada Δ marginal es respecto a la fila inmediatamente anterior. \textit{Sección inferior:} variantes alternativas evaluadas individualmente sobre la rama EMA \emph{partición única} (anclaje Dice $0{,}655$), descartadas por degradar el desempeño. Las dos contribuciones marginales positivas más grandes son la pérdida \emph{boundary-aware} y el recorte ROI-from-mask.}
+\label{tab:ablacion}
+\begin{center}
+\renewcommand{\arraystretch}{1.20}
+\begin{tabular}{@{}lccr@{}}
+\toprule
+\textbf{Configuración} & \textbf{Régimen} & \textbf{Dice mc macro} & \textbf{Δ} \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Construcción incremental del pipeline final}} \\
+\addlinespace[2pt]
+Línea base (U-Net ResNet-34, sin EMA/boundary/ROI)   & partición única & $0{,}647$ & --- \\
+\quad + EMA (decay $0{,}999$)                         & partición única & $0{,}655$ & $+0{,}008$ \\
+\quad\quad + boundary loss ($\lambda_b = 0{,}05$)     & partición única & $0{,}674$ & $+0{,}019$ \\
+\quad\quad\quad + ROI-from-mask \emph{(pipeline final)} & 5-fold CV  & \textbf{$0{,}695 \pm 0{,}021$} & $+0{,}021$\textsuperscript{$\dagger$} \\
+\midrule
+\multicolumn{4}{@{}l}{\textit{Variantes alternativas evaluadas, descartadas} (anclaje: rama EMA partición única, Dice $0{,}655$)} \\
+\addlinespace[2pt]
+con CLAHE en preprocesamiento                       & partición única & $0{,}628$ & $-0{,}027$ \\
+con \emph{backbone} TXRV ResNet-50 \cite{txrv}        & partición única & $0{,}513$ & $-0{,}142$ \\
+con $\lambda_b = 0{,}20$ (boundary sobreponderado)   & partición única & $0{,}634$ & $-0{,}021$ \\
+\bottomrule
+\end{tabular}\\[2pt]
+{\footnotesize\textsuperscript{$\dagger$}\,Δ incluye cambio de régimen partición única$\rightarrow$5-fold CV; el aporte puro de ROI bajo partición única es una cota inferior de este valor.}
+\end{center}
+\end{table*}
+
+Tres hallazgos del estudio:
+
+\begin{itemize}
+\item \textbf{Las dos contribuciones marginales más grandes} son la adición del recorte por máscara ($+0{,}021$) y la pérdida \emph{boundary-aware} ($+0{,}019$). EMA aporta una contribución modesta pero estadísticamente consistente ($+0{,}008$).
+\item \textbf{El preentrenamiento en radiografías torácicas no transfiere.} A pesar de la mayor cercanía de dominio aparente, el \emph{backbone} preentrenado en radiografías torácicas (TXRV \cite{txrv}) degrada el Dice macro en $-0{,}142$ respecto al \emph{línea base} con \emph{backbone} ImageNet. Una causa probable es la pérdida de filtros de bajo nivel especializados durante el ajuste con tasa de aprendizaje agresivamente reducida (\emph{cosine annealing}) en un conjunto pequeño ($n \approx 200$).
+\item \textbf{CLAHE neutral o negativo.} La normalización CLAHE, ampliamente reportada como positiva para segmentación de columna lumbar \cite{mdpi_clahe}, no aporta valor en nuestro pipeline y de hecho perjudica ligeramente ($-0{,}027$ frente al \emph{línea base} sin CLAHE). Discutimos posibles causas en Sec.~\ref{sec:discusion}.
+\end{itemize}
+
+\subsection{Resultados cualitativos y análisis de errores}
+\label{sec:errores}
+
+Identificamos tres patrones de error recurrentes a partir de la inspección visual de los conjuntos de validación y prueba. En los mapas de diferencia de la Fig.~\ref{fig:gallery}: verde = clase correcta, amarillo = desplazamiento de identificadores entre vértebras (ambos en primer plano, clases distintas), azul = falso negativo, rojo = falso positivo.
+
+\textbf{Patrón 1: la asignación de identificador vertebral falla en escoliosis severa.} El caso Scoliosis\_208 del conjunto OOD ilustra el patrón con claridad: el modelo recupera correctamente la columna como objeto binario (Dice binario $= 0{,}87$) pero asigna identificadores de vértebra desplazados a lo largo de la curva (Dice multiclase $= 0{,}23$). La Fig.~\ref{fig:s208} compara la salida \emph{zero-shot} del primer pliegue de la validación cruzada del modelo propuesto con la salida del modelo D2, que sí vio este caso durante el entrenamiento; ambos modelos coinciden en la segmentación binaria (primer plano vs.\ fondo) y discrepan únicamente en la numeración por vértebra. El patrón indica que la representación posicional aprendida (que enumera vértebras de superior a inferior a lo largo del eje vertical de la imagen) es frágil ante curvas extremas donde la proyección bidimensional ya no preserva el orden estricto.
+
+\begin{figure}[htbp]
+% Render: scripts/viz_s208_paper.py escribe a docs/figures/s208_paper.png (gitignored).
+% Dimensionada nativamente para columna IEEE (3.4 in @ 300 DPI).
+\centering
+\includegraphics[width=\linewidth]{s208_paper.png}
+\caption{Análisis del modo de falla por asignación de identificadores sobre el caso Scoliosis\_208 (curva severa, distribución fuera de entrenamiento). Ambos modelos encuentran la columna correctamente; la diferencia está en la numeración. \emph{Verde} = verdadero positivo de primer plano, \emph{rojo} = falso positivo, \emph{azul} = falso negativo.}
+\label{fig:s208}
+\end{figure}
+
+\textbf{Patrón 2: anotación incompleta induce falsos positivos.} Aproximadamente el 36\% de los pliegues de validación tiene anotación incompleta de al menos una vértebra (típicamente L5, por sacralización o recorte de campo; Sec.~\ref{sec:datos}). Cuando el modelo predice correctamente la vértebra ausente del GT, Dice la cuenta como falso positivo y deprime la métrica sin que el modelo esté equivocado anatómicamente.
+
+\textbf{Patrón 3: brecha en columna media-baja coincide con la ganancia al añadir ERS-18.} Las ganancias de Dice al añadir las 18 radiografías reanotadas se concentran en la región media-baja (T8--L3), exactamente donde el conjunto principal subetiqueta sistemáticamente (Tabla~\ref{tab:perclass}; Sec.~\ref{sec:datos}). Las vértebras extremas (T1--T5, L4--L5) ganan menos. La intervención de mayor retorno es añadir cobertura etiquetada en la región media-baja, no corregir máscaras existentes.
+
+% ============================================================
+% 5. Discusión y aportes
+% ============================================================
+\section{Discusión y Aportes}
+\label{sec:discusion}
+
+\subsection{Aporte metodológico: evidencia convergente sobre el techo de etiquetado}
+
+Una heurística automática simple (recuento de identificadores de vértebra únicos $< 17$) marcó 69 de 250 casos del conjunto principal como potencialmente defectuosos. En una inspección visual caso por caso realizada por el equipo (Sec.~\ref{sec:datos}; sin formación radiológica) reclasificamos provisionalmente esos 69 en cinco categorías: solo 6 (9\%) parecen errores aparentes de etiquetado, mientras 46 (67\%) parecen variantes anatómicas y 14 (20\%) presentan campo de visión recortado. Esta clasificación es preliminar y no equivale a una validación radiológica formal: presentar el cociente $9\%/100\%$ como una sobreestimación firme del ruido de etiquetado sería un \emph{overclaim} dado nuestro nivel de evidencia.
+
+Lo que sí sobrevive con evidencia firme es la \textbf{convergencia entre la inspección visual y el experimento de extensión de datos}:
+
+\begin{itemize}
+\item \textbf{Corregir 6 máscaras del conjunto principal} produjo un cambio en Dice macro menor a $0{,}001$. Sólo 1 de las 6 cae en la validación canónica; el resto está en entrenamiento, donde la influencia marginal de 5 casos sobre $\sim 200$ es despreciable.
+\item \textbf{Agregar 18 radiografías reanotadas} (el conjunto extendido ERS-18) produjo $+0{,}045$ macro en \emph{partición única} y $+0{,}020$ macro sobre el conjunto reservado.
+\item \textbf{La ganancia se concentra en T4, T8 y T9}, exactamente la región mid-espinal donde la inspección visual identificó casos con vértebras visibles pero no anotadas (Tabla~\ref{tab:perclass}). La concordancia entre dirección de la inspección y dirección de la ganancia empírica es el resultado firme: el cuello de botella en este régimen es la calidad/cobertura del GT, no la capacidad del modelo.
+\end{itemize}
+
+La regla práctica resultante para nuestro régimen ($n \sim 200$, conjuntos pequeños): \emph{añadir casos nuevos con etiquetado limpio puede superar a corregir casos existentes cuando el volumen de correcciones es pequeño frente al tamaño del val}. La generalización del umbral exacto a otros proyectos requiere réplica con auditoría radiológica formal y queda como trabajo futuro; los \emph{checklists} CLAIM \cite{claim} y la literatura sobre \emph{shortcut learning} \cite{shortcut} apuntan en la misma dirección sin fijar un valor.
+
+\subsection{Aporte experimental: cumplimiento de la propuesta con arquitectura simple}
+
+El umbral interno del equipo (Dice macro $\geq 0{,}665$, definido en Sec.~\ref{sec:metricas} como decisión metodológica interna, no como requisito de la propuesta) y el requisito de robustez a campo de visión parcial de la propuesta (operacionalizado como Dice binario $\geq 0{,}80$ a fracción de cobertura $f = 0{,}5$) quedan satisfechos con la misma arquitectura U-Net + ResNet-34 preentrenada en ImageNet, sin recurrir a las dos clases de soluciones que dominan el estado del arte: cascadas multi-red \cite{seg4reg, snomed_pipe, vertxnet} o \emph{foundation models} \cite{spinefm}. Cabe aclarar que la lectura del cumplimiento pasa el umbral mínimo en el eje binario (margen $+0{,}061$ a $f=0{,}5$); sobre el eje multiclase \emph{sensible a recorte}, la variante \emph{RandomVerticalCrop} muestra una regresión respecto al modelo base de cobertura completa ($-0{,}058$ macro), atribuible en parte al cambio de denominador en la métrica \emph{sensible a recorte} más que a degradación pura del modelo. Esto sugiere que sobre conjuntos de datos pequeños ($n \sim 200$) con anotación cuidada, una arquitectura simple bien afinada es competitiva con una alternativa auto-configurada (nnU-Net) sobre el mismo conjunto; lo crítico es la auditoría de etiquetas y la elección de preprocesamiento (recorte por región de interés a partir de la máscara) y pérdida (\emph{boundary-aware}). La afirmación se restringe a este régimen y no implica competitividad demostrada frente al estado del arte segmentación-puro sobre conjuntos mayores.
+
+El resultado negativo replicado con \emph{nnU-Net} \cite{nnunet} (2-fold Dice $0{,}634 \pm 0{,}057$ sobre el mismo IBIO-SD, por debajo de RB-UNet) refuerza la lectura: en este régimen de datos, la auto-configuración de \emph{nnU-Net} no compensa por la capacidad limitada del conjunto de entrenamiento; el techo observado es atribuible al etiquetado y no a la arquitectura.
+
+\subsection{Limitaciones y aporte clínico/aplicado}
+
+\textbf{Modo de falla por asignación de identificadores (Fig.~\ref{fig:s208}).} El modelo encuentra la columna de manera consistente (Dice binario $\geq 0{,}85$ incluso \emph{zero-shot} sobre el caso adversarial) pero la asignación discreta de identificadores vertebrales falla en curvas severas. La causa probable es que la representación posicional aprendida asume un orden estricto vertebral $\rightarrow$ vertical en la imagen, supuesto que se rompe en escoliosis con ángulos altos. Soluciones plausibles para trabajo futuro incluyen: regularización topológica (consistencia de orden a lo largo de una \emph{línea media}), cabeza auxiliar de consistencia de cadena sobre adyacencias predichas, o cambio a una formulación basada en \emph{landmarks} (fuera del alcance de este trabajo; ver literatura \cite{boostnet, vfld, lanet, spinenet}).
+
+\textbf{Cobb: una elección de protocolo, no de calidad.} El pipeline final del proyecto deriva el ángulo de Cobb \emph{post-hoc} ajustando rectas tangentes a la salida de segmentación, con MAE $27{,}77^{\circ} \pm 0{,}27^{\circ}$ sobre el conjunto reservado (variante D2). Esta cifra está muy por encima tanto de la barra clínica de variabilidad inter-observador ($3$--$5^{\circ}$ SD,~\cite{cobb_interrater}) como del SOTA reportado por el meta-análisis reciente ($2{,}99^{\circ}$,~\cite{meta_cobb}). En paralelo, la rama interna \emph{multi-tarea v4} (introducida en Sec.~\ref{sec:modelo}, una de las tres ramas exploradas) integra una cabeza de regresión Cobb dedicada con ponderación de pérdidas por incertidumbre~\cite{kendall_uncertainty} y alcanza MAE $8{,}16^{\circ} \pm 0{,}56^{\circ}$ en validación cruzada interna sobre $\sim 160$ casos con escoliosis (Tabla~\ref{tab:cobb-methods}) ---aproximadamente un orden de magnitud por debajo de la cifra del pipeline final.
+
+\textbf{¿Por qué no reportar la rama multi-tarea como modelo principal?} La razón \emph{no} es que la multi-tarea sea inferior técnicamente: para la métrica clínica de Cobb es claramente superior dentro de los límites de comparabilidad. La razón es de protocolo. La propuesta del proyecto fija como entregable principal la segmentación a nivel de píxel de columna y vértebras (Sec.~\ref{sec:problema}) y el ángulo de Cobb como métrica derivada \emph{deseable, no obligatoria} (Sec.~\ref{sec:metricas}). Sustituir el pipeline principal por la rama multi-tarea habría requerido evaluar ésta sobre el conjunto reservado, lo que sumaba una tercera evaluación a un test ya \emph{parcialmente sellado} por las dos pasadas D1 y D2 (Sec.~\ref{sec:resultados-cuant}) y consumía la única partición ciega disponible. Al no haber dispuesto de una segunda partición independiente, elegimos preservar la condición sellada de la rama principal a cambio de no exponer la rama multi-tarea al test final. Es una elección deliberada de integridad de evaluación, no una preferencia por la cifra peor.
+
+\textbf{Lectura honesta de las cifras de la Tabla~\ref{tab:cobb-methods}.} Las cifras no son apareadas: $27{,}77^{\circ}$ se mide sobre el conjunto reservado con extracción \emph{post-hoc} desde segmentación, mientras $8{,}16^{\circ}$ se mide sobre 5-fold CV interna con cabeza dedicada. La diferencia incluye régimen de evaluación (test reservado frente a validación), método de extracción (\emph{post-hoc} frente a regresión directa) y arquitectura. La cifra multi-tarea \emph{no demuestra} que se hubiera alcanzado $8{,}16^{\circ}$ sobre el test sellado; demuestra que dentro del proyecto existe una vía técnica con techo Cobb sustancialmente mejor que el pipeline reportado. La línea de trabajo futuro de mayor retorno es completar esa rama con su propia partición ciega y reportarla como pipeline principal de Cobb.
+
+\begin{table}[htbp]
+\caption{Cobb: pipeline principal (\emph{post-hoc} seg-tangente, conjunto reservado) frente a rama exploratoria multi-tarea (cabeza dedicada, validación cruzada interna). Cifras no apareadas; ver texto.}
+\label{tab:cobb-methods}
+\begin{center}
+\renewcommand{\arraystretch}{1.15}
+\footnotesize
+\begin{tabular}{@{}p{0.20\linewidth}p{0.16\linewidth}p{0.18\linewidth}p{0.16\linewidth}p{0.12\linewidth}@{}}
+\toprule
+\textbf{Modelo} & \textbf{Método Cobb} & \textbf{Evaluación} & \textbf{Cobb MAE} & \textbf{$n_{\text{sco}}$} \\
+\midrule
+RB-UNet D2 \emph{(pipeline final)} & post-hoc seg-tangente & conj.\ reservado, ensamble 5-fold & $27{,}77^{\circ} \pm 0{,}27^{\circ}$ & 18 \\
+RB-UNet D1 \emph{(base)}           & post-hoc seg-tangente & conj.\ reservado, ensamble 5-fold & $27{,}58^{\circ} \pm 0{,}24^{\circ}$ & 18 \\
+Multi-tarea v4 \emph{(rama interna)} & cabeza regresión dedicada \cite{kendall_uncertainty} & 5-fold CV \textbf{validación interna} (sin tocar test) & $8{,}16^{\circ} \pm 0{,}56^{\circ}$ & $\sim 160$ \\
+\bottomrule
+\end{tabular}\\[2pt]
+{\scriptsize El $\pm$ es la desviación estándar inter-pliegue sobre las medias por \emph{checkpoint}. La cifra multi-tarea procede de validación cruzada y no de un conjunto reservado independiente; el pipeline final del proyecto fue la ruta de segmentación pura, por lo que la rama multi-tarea no se evaluó sobre el conjunto reservado para preservar la condición sellada.}
+\end{center}
+\end{table}
+
+\textbf{Tamaño del conjunto de datos.} El conjunto de evaluación de 25 casos reservados produce intervalos de confianza relativamente amplios ($\pm 0{,}026$ sobre 25 casos). Análogamente, la evaluación fuera de distribución sobre 18 casos del conjunto extendido tiene varianza inter-\emph{fold} 1{,}6$\times$ mayor que la evaluación dentro de distribución; este conjunto debería ampliarse antes de hacer afirmaciones más fuertes sobre generalización entre fuentes.
+
+\textbf{Condición parcialmente sellada del conjunto reservado.} Aplica la advertencia detallada al abrir Sec.~\ref{sec:resultados-cuant}: una segunda partición ciega restablecería la condición y queda como trabajo futuro.
+
+% ============================================================
+% 6. Conclusiones y trabajo futuro
+% ============================================================
+\section{Conclusiones y Trabajo Futuro}
+\label{sec:conclusiones}
+
+Presentamos RB-UNet, un pipeline de segmentación de columna y vértebras T1--L5 que cumple los entregables de la propuesta (segmentación binaria y multiclase, robustez a campo de visión parcial) con una arquitectura U-Net + ResNet-34 preentrenada en ImageNet, sin cascadas multi-red ni \emph{foundation models}. Contribuciones técnicas: recorte por región de interés y pérdida \emph{boundary-aware}. Aporte metodológico: evidencia convergente ---inspección visual del equipo (sin formación radiológica) y ganancia empírica por clase al añadir ERS-18 apuntan a la misma región mid-espinal (T4--T9), lo que sugiere que el cuello de botella en este régimen es la cobertura/calidad del GT, no la capacidad del modelo. La cuantificación firme del ruido de etiquetado requiere validación radiológica formal y queda como trabajo futuro.
+
+\textbf{Trabajo futuro:}
+\begin{itemize}
+\item Resolver el modo de falla por asignación de identificadores en curvas severas (regularización topológica sobre adyacencias, cabeza auxiliar de consistencia de cadena, o formulación basada en \emph{landmarks}).
+\item Re-implementar la estimación del ángulo de Cobb con un \emph{head} de regresión dedicado o sobre máscaras de instancia generadas por un detector tipo YOLOv8-Pose, apuntando a la barra clínica de $\sim 3$--$5^{\circ}$ MAE de la literatura.
+\item Ampliar el conjunto reanotado a la meta planeada de $\sim 263$ casos para acotar la varianza inter-fuente y validar la escala del refuerzo en T8--L3.
+\item Validación clínica con lectores ortopédicos múltiples, midiendo coincidencia inter-observador frente a la salida del modelo.
+\end{itemize}
+
+\section*{Declaraciones}
+\textbf{Ética.} Todas las radiografías del conjunto principal (IBIO-SD) fueron provistas en formato anonimizado por el Grupo de Ingeniería Biomédica de la Universidad de los Andes, sin datos personales identificables y bajo acuerdo institucional de uso académico e investigativo. El subconjunto extendido (ERS-18) proviene del conjunto público \emph{Roboflow Universe scoliosis2}. No se realizó intervención sobre pacientes; el proyecto no requirió aprobación de comité de bioética según los criterios institucionales aplicables al uso secundario de imágenes anonimizadas. \textbf{Conflicto de intereses.} Los autores declaran no tener conflictos de interés. \textbf{Financiación.} Sin financiación externa.
+
+\section*{Agradecimientos}
+Al Grupo de Ingeniería Biomédica de la Universidad de los Andes por el acceso al conjunto principal de radiografías bajo acuerdo de confidencialidad. A los asesores Luis Felipe Giraldo y Christian Javier Cifuentes por la guía técnica y revisión clínica a lo largo del proyecto.
+
+% ============================================================
+% Referencias (sembradas desde el wiki del proyecto)
+% ============================================================
+\balance
+\begin{thebibliography}{99}
+
+\bibitem{cobb_interrater}
+% TODO completar lista de autores (wiki ficha Cobb_interrater_TraumaMeter_2022 no la registra)
+\emph{Cobb angle inter-observer variability with TraumaMeter: digital vs.\ manual measurement tools.}
+International Journal of Environmental Research and Public Health (MDPI), vol.~19, no.~8, art.~4655, 2022. PubMed Central PMC9027061.
+\textbf{Cifras clave usadas en este trabajo:} SD inter-observador digital $2{,}8^{\circ}$ (mejor escenario IC~95\% $\pm 1{,}30^{\circ}$); manual clásico $> 5^{\circ}$, hasta $10^{\circ}$.
+
+\bibitem{meta_cobb}
+Wang et al.
+\emph{Meta-analysis of deep-learning Cobb-angle automation: pooled CMAE 2.99° across 35 papers.}
+Spine Deformity, Springer Nature, 2024. PMC11729091.
+
+\bibitem{aasce19}
+Wang et al.
+\emph{Accurate Automated Spinal Curvature Estimation (AASCE) MICCAI 2019 Challenge.}
+Medical Image Analysis, Elsevier, 2021. S1361841521001614.
+
+\bibitem{boostnet}
+Wu et al.
+\emph{Automatic landmark estimation for adolescent idiopathic scoliosis assessment using BoostNet.}
+MICCAI 2017, Springer LNCS.
+
+\bibitem{vfld}
+Yi et al.
+\emph{Vertebra-Focused Landmark Detection for Scoliosis Assessment.}
+ICASSP 2020. arXiv:2001.03187.
+
+\bibitem{lanet}
+% TODO completar lista de autores (no registrados en wiki ficha LaNet_2024)
+\emph{LaNet: A Landmark-Aware Network with Feature Robustness Enhancement for Automated Cobb Angle Estimation.}
+arXiv preprint arXiv:2405.19645, 2024.
+\textbf{Cifras clave:} CMAE $3{,}63^{\circ}$ / SMAPE $8{,}99\%$ sobre AASCE19 a $256{\times}128$ sin preprocesamiento de contraste.
+
+\bibitem{spinenet}
+Yang Z., Qiu J., Qian D., Bao C., \emph{et al.}
+\emph{SpineNET: Lightweight keypoint-to-geometry Cobb estimator with cross-center validation.}
+Frontiers in Medicine, vol.~13, 2026.
+\textbf{Cifras clave:} MAE $1{,}44^{\circ}$ en validación externa multicéntrica; modelo de $1{,}7$M de parámetros.
+% TODO completar DOI cuando se asigne; entrada provisional del survey 2026-05-09.
+
+\bibitem{seg4reg}
+Lin Y., Zhou H.-Y., Ma K., Yang X., Zheng Y.
+\emph{Seg4Reg: A Two-Stage Segmentation-then-Regression Pipeline (AASCE 2019 1st place).}
+CSI 2019, MICCAI Workshop, Springer LNCS 11963, pp.~69--74.
+DOI 10.1007/978-3-030-39752-4\_7.
+
+\bibitem{dubost}
+Dubost F., Collery B., Renaudier A., et al.
+\emph{Automated Estimation of the Spinal Curvature via Spine Centerline Extraction.}
+CSI 2019, MICCAI Workshop, Springer LNCS 11963, pp.~88--94. arXiv:1911.01126.
+
+\bibitem{scolionet}
+Caesarendra et al.
+\emph{SCOLIONET: Spinal Cobb Angle Estimation via Custom Preprocessing and Modified U-Net with ASPP.}
+MDPI Journal of Imaging 9/12/265, 2023. PMC10743962.
+
+\bibitem{snomed_pipe}
+Shahid A., Kim J., Byon S.S., Hong S.H., Lee I.Y., Lee B.D.
+\emph{Five-Network Scoliosis Pipeline with SNOMED CT Output.}
+Scientific Reports, 2025. DOI 10.1038/s41598-025-01952-w.
+
+\bibitem{vertxnet}
+% TODO completar lista de autores
+\emph{VertXNet: Two-stage Vertebral Body Segmentation and Identification on Spinal X-rays.}
+Scientific Reports, 2023. DOI: 10.1038/s41598-023-49923-3.
+
+\bibitem{spinefm}
+% TODO completar lista de autores
+\emph{SpineFM: Foundation Models for Inductive Sequential Vertebra Segmentation on Spine X-rays.}
+arXiv preprint arXiv:2411.00326, 2024.
+
+\bibitem{txrv}
+Cohen et al.
+\emph{TorchXRayVision: A Library of Chest X-ray Datasets and Pretrained Models.}
+arXiv:2111.00595, 2021.
+
+\bibitem{ssl_small}
+% TODO completar lista de autores (no registrados en wiki ficha SSL_Small_Medical_2023)
+\emph{Self-Supervised Pretraining Outperforms Supervised ImageNet Pretraining on Small Medical Imaging Datasets.}
+Scientific Reports, 2023. DOI: 10.1038/s41598-023-46433-0.
+
+\bibitem{kendall_uncertainty}
+Kendall A., Gal Y., Cipolla R.
+\emph{Multi-Task Learning Using Uncertainty to Weigh Losses for Scene Geometry and Semantics.}
+CVPR 2018.
+
+% NOTA: bibitems gradnorm (Chen et al., ICML 2018, arXiv:1711.02257) y
+% pcgrad (Yu et al., NeurIPS 2020, arXiv:2001.06782) removidos en revisión
+% R1: el párrafo que los citaba (rama multi-tarea como evidencia interna)
+% fue re-escrito y ahora se cita únicamente kendall_uncertainty. Recuperar
+% si en una futura revisión se reintroducen estas estrategias en el texto.
+
+\bibitem{kervadec_boundary_2019}
+Kervadec H., Bouchtiba J., Desrosiers C., Granger E., Dolz J., Ben Ayed I.
+\emph{Boundary loss for highly unbalanced segmentation.}
+Medical Image Analysis 67, 101851, 2021. arXiv:1812.07032.
+
+\bibitem{mdpi_clahe}
+% TODO completar lista de autores
+\emph{Head-to-head comparison of CLAHE, Histogram Equalization and Anisotropic Diffusion as pre-processing for lumbar spine X-ray segmentation with U-Net and Mask R-CNN.}
+Algorithms (MDPI), vol.~18, no.~12, art.~796, 2025.
+
+\bibitem{nnunet}
+Isensee F. et al.
+\emph{nnU-Net: a self-configuring method for deep-learning-based biomedical image segmentation.}
+Nature Methods 18, 203--211, 2021.
+
+\bibitem{mazurowski}
+Li K., Gu H., Colglazier R., et al.; Mazurowski M.A., Alman B.
+\emph{Mask R-CNN Cobb Pipeline vs.~7-Expert Reader Consensus.}
+BJR$|$AI 2(1):ubaf009, 2025. arXiv:2403.12115.
+
+\bibitem{shortcut}
+% TODO completar lista de autores
+\emph{Shortcut Learning in Medical Imaging: Detection Protocols and Mitigation Strategies.}
+Nature Communications, 2023. DOI: 10.1038/s41467-023-39902-7.
+
+\bibitem{claim}
+Tejani A.~S., Klontzas M.~E., Gatti A.~A., Mongan J.~T., Moy L., Park S.~H., Kahn~Jr.~C.~E., \emph{et al.}
+\emph{CLAIM 2024: Updated Checklist for Artificial Intelligence in Medical Imaging.}
+Radiology: Artificial Intelligence (RSNA), vol.~6, no.~4, art.~e240300, July 2024.
+
+\bibitem{sosort}
+Negrini S., \emph{et al.}
+\emph{2016 SOSORT Guidelines: Orthopaedic and Rehabilitation Treatment of Idiopathic Scoliosis during Growth.}
+Scoliosis and Spinal Disorders, vol.~13, art.~3, 2018.
+
+\bibitem{ers18_protocol}
+Ortiz J.
+\emph{Documentación de corrección y expansión de máscaras vertebrales (ERS-18): protocolo de anotación T1--L5.}
+Repositorio del proyecto, 2026. [En línea]. Disponible en: \url{https://github.com/joaortizro/scoliosis/blob/main/docs/thesis/data_curation/vertebra_mask_correction/documentacion_correccion_mascaras_vertebrales.pdf}
+
+\bibitem{project_repo}
+Ortiz J., Castillo B., Moreno F., Oñate J., Rentería M.
+\emph{Scoliosis: código, experimentos y datos del proyecto.}
+Repositorio GitHub, 2026. [En línea]. Disponible en: \url{https://github.com/joaortizro/scoliosis}
+
+\end{thebibliography}
+
+\end{document}
